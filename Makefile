@@ -6,7 +6,11 @@ GPP:= /usr/bin/g++
 ifeq ($(CUDA_HOME),)
 	CUDA_HOME:= $(shell which nvcc | rev | cut -d'/' -f3- | rev)
 endif
+ifeq ($(ROCM_HOME),)
+	ROCM_HOME:= $(shell which hipcc | rev | cut -d'/' -f3- | rev)
+endif
 
+ifneq ($(CUDA_HOME),)
 ifndef CUDA_VERSION
 ifneq ($(MAKECMDGOALS),clean)
 $(warning WARNING: CUDA_VERSION not set. Call make with CUDA string, for example: make cuda11x CUDA_VERSION=115 or make cpuonly CUDA_VERSION=CPU)
@@ -14,9 +18,20 @@ CUDA_VERSION:=
 endif
 endif
 
+else ifneq ($(ROCM_HOME),)
+ifndef ROCM_TARGET
+$(error ERROR: ROCM_TARGET not set. Call make with ROCM string (see https://www.llvm.org/docs/AMDGPUUsage.html#processors), for example: make hip ROCM_TARGET=gfx1030)
+ROCM_TARGET:=
+endif
+else
+$(warning WARNING: Unable to find hipcc in path, fallback to ROCM_HOME /opt/rocm)
+ROCM_HOME:=/opt/rocm
+endif
+
 
 
 NVCC := $(CUDA_HOME)/bin/nvcc
+HIPCC:= $(ROCM_HOME)/bin/hipcc
 
 ###########################################
 
@@ -28,7 +43,8 @@ FILES_CPP := $(CSRC)/common.cpp $(CSRC)/cpu_ops.cpp $(CSRC)/pythonInterface.c
 
 INCLUDE :=  -I $(CUDA_HOME)/include -I $(ROOT_DIR)/csrc -I $(CONDA_PREFIX)/include -I $(ROOT_DIR)/include
 LIB := -L $(CUDA_HOME)/lib64 -lcudart -lcublas -lcublasLt -lcusparse -L $(CONDA_PREFIX)/lib
-
+HIP_INCLUDE := -I $(ROCM_HOME)/include -I $(ROOT_DIR)/csrc -I $(ROOT_DIR)/include
+HIP_LIB := -L $(ROCM_HOME)/lib -lhipblas -lhiprand -lhipsparse #-lhipblaslt, currently only gfx90a
 # NVIDIA NVCC compilation flags
 COMPUTE_CAPABILITY += -gencode arch=compute_50,code=sm_50 # Maxwell
 COMPUTE_CAPABILITY += -gencode arch=compute_52,code=sm_52 # Maxwell
@@ -114,6 +130,12 @@ cuda12x: $(BUILD_DIR) env
 
 cpuonly: $(BUILD_DIR) env
 	$(GPP) -std=c++14 -shared -fPIC -I $(ROOT_DIR)/csrc -I $(ROOT_DIR)/include $(FILES_CPP) -o ./bitsandbytes/libbitsandbytes_cpu.so
+
+hip: $(BUILD_DIR)
+	$(HIPCC) -std=c++14 -c -fPIC --offload-arch=$(ROCM_TARGET) $(HIP_INCLUDE) -o $(BUILD_DIR)/ops.o -DNO_CUBLASLT -DBNB_USE_HIP $(CSRC)/ops.cu
+	$(HIPCC) -std=c++14 -c -fPIC --offload-arch=$(ROCM_TARGET) $(HIP_INCLUDE) -o $(BUILD_DIR)/kernels.o -DNO_CUBLASLT -DBNB_USE_HIP $(CSRC)/kernels.cu
+	# HCC is deprecated, but used by hipBLASlt header. Since blas isn't even used doesn't matter, this is just so that it even compiles
+	$(GPP) -std=c++14 -D__HIP_PLATFORM_HCC__ -D__HIP_PLATFORM_AMD__ -DBUILD_CUDA -DBNB_USE_HIP -shared -fPIC $(HIP_INCLUDE) $(BUILD_DIR)/ops.o $(BUILD_DIR)/kernels.o $(FILES_CPP) $(HIP_LIB) -o ./bitsandbytes/libbitsandbytes_hip_nohipblaslt.so
 
 env:
 	@echo "ENVIRONMENT"

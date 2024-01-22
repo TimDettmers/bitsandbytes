@@ -22,15 +22,30 @@ Python >=3.8. Linux distribution (Ubuntu, MacOS, etc.) + CUDA > 10.0.
 In some cases it can happen that you need to compile from source. If this happens please consider submitting a bug report with `python -m bitsandbytes` information. What now follows is some short instructions which might work out of the box if `nvcc` is installed. If these do not work see further below.
 
 Compilation quickstart:
+
 ```bash
 git clone https://github.com/timdettmers/bitsandbytes.git
 cd bitsandbytes
+```
 
+For CUDA
+```bash
 # CUDA_VERSIONS in {110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 120}
 # make argument in {cuda110, cuda11x, cuda12x}
 # if you do not know what CUDA you have, try looking at the output of: python -m bitsandbytes
 CUDA_VERSION=117 make cuda11x
 python setup.py install
+```
+
+For ROCm
+```bash
+# Requiers ROCm 5.6+
+# Check if your GPU supports Wave32 with rocminfo | grep "Wavefront Size"
+# If this doesn't output 32 and instead 64 this library won't work
+
+# Your ROCm target can be found with rocminfo | grep gfx
+ROCM_TARGET=gfx1030 make hip
+pip install .
 ```
 
 **Using Int8 inference with HuggingFace Transformers**

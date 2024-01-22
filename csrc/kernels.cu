@@ -4,6 +4,23 @@
 // LICENSE file in the root directory of this source tree.
 
 #include <kernels.cuh>
+
+#ifdef BNB_USE_HIP
+#include <hip/hip_runtime.h>
+#include <hipcub/hipcub.hpp>
+#include <hipcub/block/block_radix_sort.hpp>
+#include <hipcub/warp/warp_reduce.hpp>
+#include <hipcub/block/block_load.hpp>
+#include <hipcub/block/block_discontinuity.hpp>
+#include <hipcub/block/block_store.hpp>
+#include <hipcub/block/block_reduce.hpp>
+#include <hip/hip_math_constants.h>
+#define cub hipcub
+#define __syncwarp __syncthreads //HIP doesn't have this, so just sync threads
+
+#else
+#include <math_constants.h>
+#include <mma.h>
 #include <cub/block/block_radix_sort.cuh>
 #include <cub/warp/warp_reduce.cuh>
 #include <cub/block/block_load.cuh>
@@ -11,18 +28,17 @@
 #include <cub/block/block_store.cuh>
 #include <cub/block/block_reduce.cuh>
 #include <cub/cub.cuh>
-#include <math_constants.h>
+#endif
+
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <mma.h>
-
 
 #define HLF_MAX 65504
 #define TH 1024
 #define NUM 4
 #define NUM_BLOCK 4096
 
-
+#ifndef BNB_USE_HIP
 // source: https://stackoverflow.com/questions/17399119/how-do-i-use-atomicmax-on-floating-point-values-in-cuda
 __device__ float atomicMax(float* address, float val) {
   int* address_as_i = reinterpret_cast<int*>(address);
@@ -47,6 +63,7 @@ __device__ float atomicMin(float* address, float val) {
   } while (assumed != old);
   return __int_as_float(old);
 }
+#endif
 
 __device__ float dDequantizeFP4(unsigned char val, float absmax)
 {
@@ -723,21 +740,28 @@ template<typename T, int BLOCK_SIZE, int NUM_PER_TH, int STOCHASTIC, int DATA_TY
 //__launch_bounds__(TH, 4)
 __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float *absmax, unsigned char *out, float * __restrict__ const rand, const int rand_offset, const int n)
 {
+  #ifdef BNB_USE_HIP
+  const int CUB_NUM_PER_TH=(BLOCK_SIZE/NUM_PER_TH % __AMDGCN_WAVEFRONT_SIZE == 0) ? NUM_PER_TH : NUM_PER_TH/2;
+  #else
+  const int CUB_NUM_PER_TH=NUM_PER_TH;
+  #endif
+  const int DATA_NUM_PER_TH=(DATA_TYPE > 0) ? NUM_PER_TH/2 : CUB_NUM_PER_TH;
+
   const int n_full = gridDim.x * BLOCK_SIZE;
   int valid_items = 0;
   const int base_idx = (blockIdx.x * BLOCK_SIZE);
 
-  T vals[NUM_PER_TH];
-  float rand_vals[NUM_PER_TH];
-  unsigned char qvals[(DATA_TYPE > 0) ? NUM_PER_TH/2 : NUM_PER_TH];
+  T vals[CUB_NUM_PER_TH];
+  float rand_vals[CUB_NUM_PER_TH];
+  unsigned char qvals[DATA_NUM_PER_TH];
   //float local_abs_max = -FLT_MAX;
   float local_abs_max = 0.0f;
   int local_rand_idx = 0;
 
-  typedef cub::BlockLoad<T, BLOCK_SIZE/NUM_PER_TH, NUM_PER_TH, cub::BLOCK_LOAD_WARP_TRANSPOSE> LoadT;
-  typedef cub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, (DATA_TYPE > 0) ? NUM_PER_TH/2 : NUM_PER_TH, cub::BLOCK_STORE_WARP_TRANSPOSE> StoreChar;
-  typedef cub::BlockReduce<float, BLOCK_SIZE/NUM_PER_TH> BlockReduce;
-  typedef cub::BlockLoad<float, BLOCK_SIZE/NUM_PER_TH, NUM_PER_TH, cub::BLOCK_LOAD_WARP_TRANSPOSE> LoadFloat;
+  typedef cub::BlockLoad<T, BLOCK_SIZE/CUB_NUM_PER_TH, CUB_NUM_PER_TH, cub::BLOCK_LOAD_WARP_TRANSPOSE> LoadT;
+  typedef cub::BlockStore<unsigned char, BLOCK_SIZE/CUB_NUM_PER_TH, DATA_NUM_PER_TH, cub::BLOCK_STORE_WARP_TRANSPOSE> StoreChar;
+  typedef cub::BlockReduce<float, BLOCK_SIZE/CUB_NUM_PER_TH> BlockReduce;
+  typedef cub::BlockLoad<float, BLOCK_SIZE/CUB_NUM_PER_TH, CUB_NUM_PER_TH, cub::BLOCK_LOAD_WARP_TRANSPOSE> LoadFloat;
 
   __shared__ typename LoadT::TempStorage loadt;
   __shared__ typename LoadFloat::TempStorage loadf;
@@ -762,8 +786,8 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
     // 2. broadcast local max
     // 3. normalize inputs and quantize
 
-    #pragma unroll NUM_PER_TH
-    for(int j = 0; j < NUM_PER_TH; j++)
+    #pragma unroll CUB_NUM_PER_TH
+    for(int j = 0; j < CUB_NUM_PER_TH; j++)
        local_abs_max = fmaxf(local_abs_max, fabsf((float)vals[j]));
 
     local_abs_max = BlockReduce(reduce).Reduce(local_abs_max, cub::Max(), valid_items);
@@ -792,8 +816,8 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
     switch(DATA_TYPE)
     {
         case General8bit:
-            #pragma unroll NUM_PER_TH
-            for(int j = 0; j < NUM_PER_TH; j++)
+            #pragma unroll CUB_NUM_PER_TH
+            for(int j = 0; j < CUB_NUM_PER_TH; j++)
             {
                 if(!STOCHASTIC)
                  qvals[j] = dQuantize<0>(smem_code, 0.0f, ((float)vals[j])*local_abs_max);
@@ -802,8 +826,8 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
             }
             break;
         case FP4:
-            #pragma unroll NUM_PER_TH
-            for(int j = 0; j < NUM_PER_TH/2; j++)
+            #pragma unroll CUB_NUM_PER_TH
+            for(int j = 0; j < DATA_NUM_PER_TH; j++)
             {
               packed_4bit |= dQuantizeFP4(((float)vals[2*j])*local_abs_max) << 4;
               packed_4bit |= dQuantizeFP4(((float)vals[2*j+1])*local_abs_max);
@@ -811,8 +835,8 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
             }
             break;
         case NF4:
-            #pragma unroll NUM_PER_TH
-            for(int j = 0; j < NUM_PER_TH/2; j++)
+            #pragma unroll CUB_NUM_PER_TH
+            for(int j = 0; j < DATA_NUM_PER_TH; j++)
             {
               packed_4bit |= dQuantizeNF4(((float)vals[2*j])*local_abs_max) << 4;
               packed_4bit |= dQuantizeNF4(((float)vals[2*j+1])*local_abs_max);

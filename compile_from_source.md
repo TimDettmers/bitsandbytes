@@ -38,3 +38,16 @@ If you have problems compiling the library with these instructions from source, 
 
 Since 0.39.1 bitsandbytes installed via pip no longer provides Kepler binaries and these need to be compiled from source. Follow the steps above and instead of `cuda11x_nomatmul` etc use `cuda11x_nomatmul_kepler`
 
+## Compilation with ROCm
+
+Since this library requires hipblasLt this only supports **ROCm 5.6+**.
+Works well with these docker images:
+- [rocm/pytorch](https://hub.docker.com/r/rocm/pytorch)
+- [rocm/pytorch-nightly](https://hub.docker.com/r/rocm/pytorch-nightly).
+
+For installation do:
+```bash
+make hip ROCM_TARGET=gfx1030
+pip install .
+```
+see https://www.llvm.org/docs/AMDGPUUsage.html#processors for finding ROCM_TARGET (e.g. gfx1030 for 6800XT,6900XT) or do `rocminfo | grep gfx`.

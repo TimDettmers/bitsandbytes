@@ -5,11 +5,16 @@
 
 #include <ops.cuh>
 #include <kernels.cuh>
-#include <cub/device/device_scan.cuh>
 #include <limits>
 #include <BinSearch.h>
 #include <cassert>
 #include <common.h>
+
+#ifdef BNB_USE_HIP
+#include <hipcub/device/device_scan.hpp>
+#else
+#include <cub/device/device_scan.cuh>
+#endif
 
 
 using namespace BinSearch;

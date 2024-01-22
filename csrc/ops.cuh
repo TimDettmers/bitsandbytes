@@ -12,16 +12,62 @@
 #include <unistd.h>
 #include <assert.h>
 
+
+#ifdef BNB_USE_HIP
+
+#include <hip/hip_runtime_api.h>
+#include <hip/hip_fp16.h>
+#include <hipblas/hipblas.h>
+#include <hipblaslt/hipblaslt.h> //only using header to allow redefines
+#include <hipsparse/hipsparse.h>
+
+#define cudaPeekAtLastError hipPeekAtLastError
+#define cudaMemset hipMemset
+#define cudaMemAttachHost hipMemAttachHost
+#define cudaMemPrefetchAsync hipMemPrefetchAsync
+#define cudaMallocManaged hipMallocManaged
+#define cudaDevAttrConcurrentManagedAccess hipDeviceAttributeConcurrentManagedAccess
+#define cudaDeviceGetAttribute hipDeviceGetAttribute
+#define cublasGemmEx hipblasGemmEx
+#define cublasStatus_t hipblasStatus_t
+#define CUBLAS_OP_T HIPBLAS_OP_T
+#define CUBLAS_OP_N HIPBLAS_OP_N
+#define CUDA_R_8I HIPBLAS_R_8I
+#define CUDA_R_32I HIPBLAS_R_32I
+#define CUBLAS_STATUS_SUCCESS HIPBLAS_STATUS_SUCCESS
+#define cublasStatus_t hipblasStatus_t
+#define cublasGemmStridedBatchedEx hipblasGemmStridedBatchedEx
+#define cublasOperation_t hipblasOperation_t
+#define cublasLtMatrixLayoutCreate hipblasLtMatrixLayoutCreate
+#define cudaError_t hipError_t
+#define cudaGetErrorString hipGetErrorString
+#define cudaSuccess hipSuccess
+#define cusparseStatus_t hipsparseStatus_t
+#define CUSPARSE_STATUS_SUCCESS HIPSPARSE_STATUS_SUCCESS
+#define cublasStatus_t hipblasStatus_t
+#define CUBLAS_STATUS_SUCCESS HIPBLAS_STATUS_SUCCESS
+#define cublasHandle_t hipblasHandle_t
+#define cublasCreate_v2 hipblasCreate
+#define cusparseHandle_t hipsparseHandle_t
+#define cusparseCreate hipsparseCreate
+#define __nv_bfloat16 hip_bfloat16
+#define cublasLtHandle_t hipblasLtHandle_t
+#define cublasLtCreate hipblasLtCreate
+#define CUBLAS_GEMM_DEFAULT HIPBLAS_GEMM_DEFAULT
+#define CUBLAS_GEMM_DEFAULT_TENSOR_OP HIPBLAS_GEMM_DEFAULT
+
+#else
 #include <cuda_runtime_api.h>
 #include <cuda_fp16.h>
 #include <cublas_v2.h>
 #include <cublasLt.h>
 #include <cusparse.h>
-#include <vector>
-#include <functional>
 
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#endif
+#include <vector>
+#include <functional>
 
 
 

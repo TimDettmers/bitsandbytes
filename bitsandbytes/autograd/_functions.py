@@ -224,7 +224,7 @@ matmul_cublas = MatMul8bit.apply
 
 def supports_igemmlt(device: torch.device) -> bool:
     """check if this device supports the optimized int8 kernel"""
-    if torch.cuda.get_device_capability(device=device) < (7, 5):
+    if torch.cuda.get_device_capability(device=device) < (7, 5) or torch.version.hip:
         return False
     device_name = torch.cuda.get_device_name(device=device)
     nvidia16_models = ('GTX 1630', 'GTX 1650', 'GTX 1660')  # https://en.wikipedia.org/wiki/GeForce_16_series
