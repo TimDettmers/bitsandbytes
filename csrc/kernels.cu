@@ -2414,7 +2414,7 @@ template <int ITEMS_PER_THREAD, int SUBTILE_ROWS, int THREADS>__global__ void kd
 }
 
 
-template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int SPARSE_DECOMP> __global__ void kDoubleRowColQuant(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols)
+template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int SPARSE_DECOMP> __global__ void kDoubleRowColQuant(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols)
 {
   // assumes TILE_SIZE == THREADS*ITEMS_PER_THREAD
   // Each thread reads the same column but multiple rows
@@ -2436,7 +2436,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
 
   typedef cub::BlockLoad<half, THREADS, ITEMS_PER_THREAD, cub::BLOCK_LOAD_VECTORIZE> LoadHalf;
   __shared__ typename LoadHalf::TempStorage loadhalf;
-  typedef cub::BlockStore<char, THREADS, ITEMS_PER_THREAD, cub::BLOCK_STORE_VECTORIZE> StoreInt8;
+  typedef cub::BlockStore<int8_t, THREADS, ITEMS_PER_THREAD, cub::BLOCK_STORE_VECTORIZE> StoreInt8;
   __shared__ typename StoreInt8::TempStorage storeint8;
 
   __shared__ float smem_row_stats[TILE_ROWS];
@@ -2444,7 +2444,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
 
   half local_data[ITEMS_PER_THREAD];
   float local_col_stats[ITEMS_PER_THREAD];
-  char local_quantized_data[ITEMS_PER_THREAD];
+  int8_t local_quantized_data[ITEMS_PER_THREAD];
 
   // 0. Load row stats data into shared memory; load col stat (1 fixed per thread)
   #pragma unroll ITEMS_PER_THREAD
@@ -2494,11 +2494,11 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
         }
 				else
 				{
-					local_quantized_data[j] = (char)(rintf(__half2float(local_data[j])*row_stat));
+					local_quantized_data[j] = (int8_t)(rintf(__half2float(local_data[j])*row_stat));
 				}
       }
       else
-        local_quantized_data[j] = (char)(rintf(__half2float(local_data[j])*row_stat));
+        local_quantized_data[j] = (int8_t)(rintf(__half2float(local_data[j])*row_stat));
     }
 
     StoreInt8(storeint8).Store(&(out_row_normed[i]), local_quantized_data, valid_items);
@@ -2509,7 +2509,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
     {
       // we already pre-normalized the col/row stat:
       // what this does is float/absmax*127 = int8
-			local_quantized_data[j] = (char)(rintf(__half2float(local_data[j])*local_col_stats[j]));
+			local_quantized_data[j] = (int8_t)(rintf(__half2float(local_data[j])*local_col_stats[j]));
     }
 
     __syncthreads();
@@ -3837,8 +3837,8 @@ template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL_AMPERE>(
 
 template __global__ void kdequant_mm_int32_fp16<4, 128, 512>(int *__restrict__ const A, float *__restrict__ const rowStats, float *__restrict__ const colStats, half *out, float* newRowStats, float* newcolStats, half * __restrict__ const bias, const int numRows, const int numCols, const int tileCols, const int n);
 
-template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 0>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
-template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 1>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
+template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 0>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
+template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 1>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
 
 template __device__ unsigned char dQuantize<0>(float* smem_code, const float rand, float x);
 template __device__ unsigned char dQuantize<1>(float* smem_code, const float rand, float x);

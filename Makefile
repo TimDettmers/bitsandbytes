@@ -43,7 +43,7 @@ CC_KEPLER += -gencode arch=compute_37,code=sm_37 # Kepler
 CC_CUDA11x := -gencode arch=compute_75,code=sm_75
 CC_CUDA11x += -gencode arch=compute_80,code=sm_80
 CC_CUDA11x += -gencode arch=compute_86,code=sm_86
-
+CC_CUDA11x += -gencode arch=compute_87,code=sm_87
 
 CC_cublasLt110 := -gencode arch=compute_75,code=sm_75
 CC_cublasLt110 += -gencode arch=compute_80,code=sm_80
@@ -51,6 +51,7 @@ CC_cublasLt110 += -gencode arch=compute_80,code=sm_80
 CC_cublasLt111 := -gencode arch=compute_75,code=sm_75
 CC_cublasLt111 += -gencode arch=compute_80,code=sm_80
 CC_cublasLt111 += -gencode arch=compute_86,code=sm_86
+CC_cublasLt111 += -gencode arch=compute_87,code=sm_87
 
 CC_ADA_HOPPER := -gencode arch=compute_89,code=sm_89
 CC_ADA_HOPPER += -gencode arch=compute_90,code=sm_90

@@ -185,7 +185,7 @@ template <typename T, int SRC, int TARGET, bool transpose, int DTYPE> void trans
 void cutlass_igemm(bool transposeA, bool transposeB, int m, int n, int k, void *A, void *B, void *C, int lda, int ldb, int ldc);
 void dequant_mm_int32_fp16(int *A, float *rowStats, float *colStats, half *out, float* newRowStats, float* newcolStats, half* bias, int numRows, int numCols);
 void getColRowStats(half * A, float *rowStats, float *colStats, int *nnz_count_row, float nnz_threshold, int rows, int cols);
-void doubleRowColQuant(half * A, float *rowStats, float *colStats, char *out_col_normed, char *out_row_normed,
+void doubleRowColQuant(half * A, float *rowStats, float *colStats, int8_t *out_col_normed, int8_t *out_row_normed,
                        int *rowidx, int *colidx, half *val, int *nnz_block_ptr, float threshold, int rows, int cols);
 
 template <int FORMAT, int TRANSPOSE> void transformRowToFormat(char * A, char *out, int rows, int cols);

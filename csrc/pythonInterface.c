@@ -332,7 +332,7 @@ extern "C"
 	void cget_col_row_stats(half * A, float *rowStats, float *colStats, int *nnz_count_row, float nnz_threshold, int rows, int cols)
 	{ getColRowStats(A, rowStats, colStats, nnz_count_row, nnz_threshold, rows, cols); }
 
-  void cdouble_rowcol_quant(half * A, float *rowStats, float *colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int *nnz_row_ptr, float threshold, int rows, int cols)
+  void cdouble_rowcol_quant(half * A, float *rowStats, float *colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int *nnz_row_ptr, float threshold, int rows, int cols)
 	{ doubleRowColQuant(A, rowStats, colStats, out_col_normed, out_row_normed, rowidx, colidx, val, nnz_row_ptr, threshold, rows, cols); }
 
 	void ctransform_row2col32(char * A, char *out, int rows, int cols)
