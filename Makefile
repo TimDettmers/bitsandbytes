@@ -53,7 +53,7 @@ CC_cublasLt111 += -gencode arch=compute_80,code=sm_80
 CC_cublasLt111 += -gencode arch=compute_86,code=sm_86
 
 CC_ADA_HOPPER := -gencode arch=compute_89,code=sm_89
-CC_ADA_HOPPER += -gencode arch=compute_90,code=sm_90
+CC_ADA_HOPPER += -gencode arch=compute_90a,code=sm_90a
 
 
 all: $(BUILD_DIR) env
