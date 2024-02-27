@@ -19,6 +19,222 @@
 //===================================================================================
 
 #if BUILD_CUDA
+#if USE_CUDA_WRAPPER
+
+#ifndef _WIN32
+#define LDSYMCUDA(func) do { \
+    _##func = (func##_t) dlsym(libCudaHandle, #func); \
+    /* Check for errors */                                                  \
+    const char *err = dlerror();                                            \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from libcuda.so");      \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#define LDSYMCUSPARSE(func) do { \
+    _##func = (func##_t) dlsym(libCusparseHandle, #func); \
+    /* Check for errors */                                                  \
+    const char *err = dlerror();                                            \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from libcudaparse.so"); \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#define LDSYMCUBLAS(func) do { \
+    _##func = (func##_t) dlsym(libCublasHandle, #func); \
+    /* Check for errors */                                                  \
+    const char *err = dlerror();                                            \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from libcublas.so");    \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#define LDSYMCUBLASLT(func) do { \
+    _##func = (func##_t) dlsym(libCublasLtHandle, #func); \
+    /* Check for errors */                                                  \
+    const char *err = dlerror();                                            \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from libcublaslt.so");  \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#else
+#define LDSYMCUDA(func) do { \
+    _##func = (func##_t) GetProcAddress((HMODULE)libCudaHandle, #func);     \
+    /* Check for errors */                                                  \
+    long err = GetLastError();                                              \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from nvcuda.dll: %d\n", err); \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#define LDSYMCUSPARSE(func) do { \
+    _##func = (func##_t) GetProcAddress((HMODULE)libCusparseHandle, #func); \
+    /* Check for errors */                                                  \
+    long err = GetLastError();                                              \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from cusparse64_*.dll: %d\n", err); \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#define LDSYMCUBLAS(func) do { \
+    _##func = (func##_t) GetProcAddress((HMODULE)libCublasHandle, #func);   \
+    /* Check for errors */                                                  \
+    long err = GetLastError();                                              \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from cublas64_*.dll: %d\n", err);  \
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#define LDSYMCUBLASLT(func) do { \
+    _##func = (func##_t) GetProcAddress((HMODULE)libCublasLtHandle, #func); \
+    /* Check for errors */                                                  \
+    long err = GetLastError();                                              \
+    if (err) {                                                              \
+      fprintf(stderr, "Failed to retrieve " #func " from cublasLt64_*.dll: %d\n", err);\
+      exit(1);                                                              \
+    }                                                                       \
+} while(0)
+
+#endif /* _WIN32 */
+
+cudaGetErrorString_t cudaGetErrorString;
+cusparseGetErrorString_t cusparseGetErrorString;
+//static cudaMallocManaged_t cudaMallocManaged;
+//static cudaMemPrefetchAsync_t cudaMemPrefetchAsync;
+//static cudaDeviceGetAttribute_t cudaDeviceGetAttribute;
+cudaMemset_t cudaMemset;
+cudaMalloc_t cudaMalloc;
+cudaFree_t cudaFree;
+cudaPeekAtLastError_t cudaPeekAtLastError;
+
+cusparseCreate_t cusparseCreate;
+cublasCreate_v2_t cublasCreate_v2;
+cublasLtCreate_t cublasLtCreate;
+
+cusparseDestroySpMat_t cusparseDestroySpMat;
+cusparseDestroyDnMat_t cusparseDestroyDnMat;
+cusparseCreateCoo_t cusparseCreateCoo;
+cusparseSpMM_t cusparseSpMM;
+cusparseSpMM_bufferSize_t cusparseSpMM_bufferSize;
+cusparseCreateDnMat_t cusparseCreateDnMat;
+
+cublasGemmEx_t cublasGemmEx;
+cublasGemmStridedBatchedEx_t cublasGemmStridedBatchedEx;
+
+cublasLtMatrixLayoutCreate_t cublasLtMatrixLayoutCreate;
+cublasLtMatrixLayoutSetAttribute_t cublasLtMatrixLayoutSetAttribute;
+cublasLtMatrixTransform_t cublasLtMatrixTransform;
+cublasLtMatrixTransformDescCreate_t cublasLtMatrixTransformDescCreate;
+cublasLtMatrixTransformDescSetAttribute_t cublasLtMatrixTransformDescSetAttribute;
+cublasLtMatrixLayoutDestroy_t cublasLtMatrixLayoutDestroy;
+cublasLtMatrixTransformDescDestroy_t cublasLtMatrixTransformDescDestroy;
+cublasLtMatmul_t cublasLtMatmul;
+cublasLtMatmulDescCreate_t cublasLtMatmulDescCreate;
+cublasLtMatmulDescDestroy_t cublasLtMatmulDescDestroy;
+cublasLtMatmulDescSetAttribute_t cublasLtMatmulDescSetAttribute;
+
+
+extern "C" int initCudaLibs() {
+    // cuda libs handles
+    void *libCudaHandle = NULL;
+    void *libCusparseHandle = NULL;
+    void *libCublasHandle = NULL;
+    void *libCublasLtHandle = NULL;
+
+    void *libs[4] = { NULL, NULL, NULL, NULL };
+
+#ifndef _WIN32
+    const char *libname[] = { "libcudart.so", "libcusparse.so", "libcublas.so", "libcublasLt.so" };
+    const char *libname11[] = { "libcudart.so.11", "libcusparse.so.11", "libcublas.so.11", "libcublasLt.so.11" };
+    const char *libname12[] = { "libcudart.so.12", "libcusparse.so.12", "libcublas.so.12", "libcublasLt.so.12" };
+#else
+    const char *libname[] = { "cudart64_110.dll", "cusparse64_11.dll", "cublas64_11.dll", "cublasLt64_11.dll" };
+    const char *libname12[] = { "cudart64_12.dll, cusparse64_12.dll", "cublas64_12.dll", "cublasLt64_12.dll" };
+#endif
+
+    if (cudaGetErrorString != NULL) {
+        return 0;
+    }
+    for (int i = 0; i < 4; i++) {
+#ifndef _WIN32
+        void *handle = dlopen(libname[i], RTLD_LAZY);
+        if (!handle) {
+            handle = dlopen(libname11[i], RTLD_LAZY);
+            if (!handle) {
+                handle = dlopen(libname12[i], RTLD_LAZY);
+            }
+        }
+#else
+        HANDLE handle = (HANDLE)LoadLibraryA(libname[i]);
+        if (!handle) {
+            handle = (HANDLE)LoadLibraryA(libname12[i]);
+        }
+#endif
+        if (!handle) {
+            fprintf(stderr, "Fail to load cuda library '%s'\n", libname[i]);
+            exit(1);
+        }
+#ifndef _WIN32
+        dlerror();
+#endif
+        libs[i] = handle;
+    }
+
+    libCudaHandle = libs[0];
+    libCusparseHandle = libs[1];
+    libCublasHandle = libs[2];
+    libCublasLtHandle = libs[3];
+
+    LDSYMCUDA(cudaGetErrorString);
+    LDSYMCUSPARSE(cusparseGetErrorString);
+    LDSYMCUSPARSE(cusparseCreate);
+    LDSYMCUBLAS(cublasCreate_v2);
+    LDSYMCUBLASLT(cublasLtCreate);
+    //LDSYMCUDA(cudaMallocManaged);
+    //LDSYMCUDA(cudaMemPrefetchAsync);
+    //LDSYMCUDA(cudaDeviceGetAttribute);
+    LDSYMCUDA(cudaMemset);
+    LDSYMCUDA(cudaMalloc);
+    LDSYMCUDA(cudaFree);
+    LDSYMCUDA(cudaPeekAtLastError);
+
+    LDSYMCUSPARSE(cusparseCreateCoo);
+    LDSYMCUSPARSE(cusparseDestroySpMat);
+    LDSYMCUSPARSE(cusparseDestroyDnMat);
+    LDSYMCUSPARSE(cusparseSpMM);
+    LDSYMCUSPARSE(cusparseSpMM_bufferSize);
+    LDSYMCUSPARSE(cusparseCreateDnMat);
+
+    LDSYMCUBLAS(cublasGemmEx);
+    LDSYMCUBLAS(cublasGemmStridedBatchedEx);
+
+#ifndef NO_CUBLASLT
+    LDSYMCUBLASLT(cublasLtMatrixLayoutCreate);
+    LDSYMCUBLASLT(cublasLtMatrixLayoutSetAttribute);
+    LDSYMCUBLASLT(cublasLtMatrixTransform);
+    LDSYMCUBLASLT(cublasLtMatrixTransformDescCreate);
+    LDSYMCUBLASLT(cublasLtMatrixTransformDescSetAttribute);
+    LDSYMCUBLASLT(cublasLtMatrixLayoutDestroy);
+    LDSYMCUBLASLT(cublasLtMatrixTransformDescDestroy);
+    LDSYMCUBLASLT(cublasLtMatmul);
+    LDSYMCUBLASLT(cublasLtMatmulDescCreate);
+    LDSYMCUBLASLT(cublasLtMatmulDescDestroy);
+    LDSYMCUBLASLT(cublasLtMatmulDescSetAttribute);
+#endif
+
+    return 0;
+}
+#endif /* USE_CUDA_WRAPPER */
+
+
 void estimateQuantiles_fp32(float *A, float *code, float offset, int n){ estimateQuantiles<float>(A, code, offset, n); }
 void estimateQuantiles_fp16(half *A, float *code, float offset, int n){ estimateQuantiles<half>(A, code, offset, n); }
 

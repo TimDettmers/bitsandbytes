@@ -255,7 +255,7 @@ void gemmex(Context *context, bool transposeA, bool transposeB, int m, int n, in
 					m, n,	k,
 					alpha, A, CUDA_R_8I, lda, B, CUDA_R_8I, ldb, beta,
 					C, CUDA_R_32I, ldc,
-          CUDA_R_32I, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+          CUBLAS_COMPUTE_32I, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 
     if (status != CUBLAS_STATUS_SUCCESS)
     {
@@ -285,7 +285,7 @@ void strided_gemmex(Context *context, bool transposeA, bool transposeB, int m, i
 					m, n,	k,
 					alpha, A, CUDA_R_8I, lda, (long long int)strideA, B, CUDA_R_8I, ldb, (long long int)strideB, beta,
 					C, CUDA_R_32I, ldc, (long long int)strideC, batchCount,
-          CUDA_R_32I, CUBLAS_GEMM_DEFAULT);
+          CUBLAS_COMPUTE_32I, CUBLAS_GEMM_DEFAULT);
 
     if (status != CUBLAS_STATUS_SUCCESS)
     {

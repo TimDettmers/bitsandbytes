@@ -30,7 +30,7 @@ from .env_vars import get_potentially_lib_path_containing_env_vars
 
 DYNAMIC_LIBRARY_SUFFIX = { "Darwin": ".dylib", "Windows": ".dll", "Linux": ".so"}.get(platform.system(), ".so")
 if platform.system() == "Windows":  # Windows
-    CUDA_RUNTIME_LIBS = ["nvcuda.dll"]
+    CUDA_RUNTIME_LIBS = ["cudart64_110.dll", "cudart64_12.dll"]
 else:  # Linux or other
     # these are the most common libs names
     # libcudart.so is missing by default for a conda install with PyTorch 2.0 and instead
@@ -383,7 +383,14 @@ def evaluate_cuda_setup():
     # we use ls -l instead of nvcc to determine the cuda version
     # since most installations will have the libcudart.so installed, but not the compiler
 
-    binary_name = f"libbitsandbytes_cuda{cuda_version_string}"
+    binary = f"libbitsandbytes_cuda{DYNAMIC_LIBRARY_SUFFIX}"
+    package_dir = Path(__file__).parent.parent
+    binary_path = package_dir / binary
+    # check binary_path without cuda_version_string
+    if binary_path.exists():
+        binary_name = "libbitsandbytes_cuda"
+    else:
+        binary_name = f"libbitsandbytes_cuda{cuda_version_string}"
     if not has_cublaslt:
         # if not has_cublaslt (CC < 7.5), then we have to choose _nocublaslt
         binary_name += "_nocublaslt"

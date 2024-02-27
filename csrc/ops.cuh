@@ -22,7 +22,260 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
+#if USE_CUDA_WRAPPER
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+typedef const char* (*cudaGetErrorString_t)(cudaError_t err);
+typedef const char* (*cusparseGetErrorString_t)(cusparseStatus_t status);
+typedef cusparseStatus_t (*cusparseCreate_t)(cusparseHandle_t* handle);
+typedef cublasStatus_t (*cublasCreate_v2_t)(cublasHandle_t* handle);
+typedef cublasStatus_t (*cublasLtCreate_t)(cublasLtHandle_t* lightHandle);
+//typedef cudaError_t (*cudaMallocManaged_t)(void **devPtr, size_t size, unsigned int flags);
+//typedef cudaError_t (*cudaMemPrefetchAsync_t)(const void *devPtr, size_t count, int dstDevice, cudaStream_t stream);
+//typedef cudaError_t (*cudaDeviceGetAttribute_t)(int *value, enum cudaDeviceAttr attr, int device);
+
+typedef cusparseStatus_t (*cusparseCreateCoo_t)(cusparseSpMatDescr_t* spMatDescr,
+                  int64_t               rows,
+                  int64_t               cols,
+                  int64_t               nnz,
+                  void*                 cooRowInd,
+                  void*                 cooColInd,
+                  void*                 cooValues,
+                  cusparseIndexType_t   cooIdxType,
+                  cusparseIndexBase_t   idxBase,
+                  cudaDataType          valueType);
+
+typedef cusparseStatus_t (*cusparseCreateDnMat_t)(cusparseDnMatDescr_t* dnMatDescr,
+                    int64_t               rows,
+                    int64_t               cols,
+                    int64_t               ld,
+                    void*                 values,
+                    cudaDataType          valueType,
+                    cusparseOrder_t       order);
+
+typedef cusparseStatus_t (*cusparseSpMM_bufferSize_t)(cusparseHandle_t     handle,
+                        cusparseOperation_t  opA,
+                        cusparseOperation_t  opB,
+                        const void*          alpha,
+                        cusparseSpMatDescr_t matA,
+                        cusparseDnMatDescr_t matB,
+                        const void*          beta,
+                        cusparseDnMatDescr_t matC,
+                        cudaDataType         computeType,
+                        cusparseSpMMAlg_t    alg,
+                        size_t*              bufferSize);
+
+typedef cusparseStatus_t (*cusparseSpMM_t)(cusparseHandle_t     handle,
+             cusparseOperation_t  opA,
+             cusparseOperation_t  opB,
+             const void*          alpha,
+             cusparseSpMatDescr_t matA,
+             cusparseDnMatDescr_t matB,
+             const void*          beta,
+             cusparseDnMatDescr_t matC,
+             cudaDataType         computeType,
+             cusparseSpMMAlg_t    alg,
+             void*                externalBuffer);
+
+typedef cusparseStatus_t (*cusparseDestroySpMat_t)(cusparseSpMatDescr_t spMatDescr);
+typedef cusparseStatus_t (*cusparseDestroyDnMat_t)(cusparseDnMatDescr_t dnMatDescr);
+
+typedef cudaError_t (*cudaMemset_t)(void *devPtr, int value, size_t count);
+typedef cudaError_t (*cudaMalloc_t)(void **devPtr, size_t size);
+typedef cudaError_t (*cudaFree_t)(void *devPtr);
+typedef cudaError_t (*cudaPeekAtLastError_t)(void);
+
+typedef cublasStatus_t (*cublasGemmEx_t)(cublasHandle_t handle,
+                                                   cublasOperation_t transa,
+                                                   cublasOperation_t transb,
+                                                   int m,
+                                                   int n,
+                                                   int k,
+                                                   const void* alpha, /* host or device pointer */
+                                                   const void* A,
+                                                   cudaDataType Atype,
+                                                   int lda,
+                                                   const void* B,
+                                                   cudaDataType Btype,
+                                                   int ldb,
+                                                   const void* beta, /* host or device pointer */
+                                                   void* C,
+                                                   cudaDataType Ctype,
+                                                   int ldc,
+                                                   cublasComputeType_t computeType,
+                                                   cublasGemmAlgo_t algo);
+
+typedef cublasStatus_t (*cublasGemmStridedBatchedEx_t)(cublasHandle_t handle,
+                                                                 cublasOperation_t transa,
+                                                                 cublasOperation_t transb,
+                                                                 int m,
+                                                                 int n,
+                                                                 int k,
+                                                                 const void* alpha, /* host or device pointer */
+                                                                 const void* A,
+                                                                 cudaDataType Atype,
+                                                                 int lda,
+                                                                 long long int strideA, /* purposely signed */
+                                                                 const void* B,
+                                                                 cudaDataType Btype,
+                                                                 int ldb,
+                                                                 long long int strideB,
+                                                                 const void* beta, /* host or device pointer */
+                                                                 void* C,
+                                                                 cudaDataType Ctype,
+                                                                 int ldc,
+                                                                 long long int strideC,
+                                                                 int batchCount,
+                                                                 cublasComputeType_t computeType,
+                                                                 cublasGemmAlgo_t algo);
+
+typedef cublasStatus_t (*cublasLtMatrixLayoutCreate_t)(  //
+    cublasLtMatrixLayout_t* matLayout,
+    cudaDataType type,
+    uint64_t rows,
+    uint64_t cols,
+    int64_t ld);
+
+typedef cublasStatus_t (*cublasLtMatrixLayoutSetAttribute_t)(  //
+    cublasLtMatrixLayout_t matLayout,
+    cublasLtMatrixLayoutAttribute_t attr,
+    const void* buf,
+    size_t sizeInBytes);
+
+typedef cublasStatus_t (*cublasLtMatrixTransform_t)(cublasLtHandle_t lightHandle,
+                                                    cublasLtMatrixTransformDesc_t transformDesc,
+                                                    const void* alpha, /* host or device pointer */
+                                                    const void* A,
+                                                    cublasLtMatrixLayout_t Adesc,
+                                                    const void* beta, /* host or device pointer */
+                                                    const void* B,
+                                                    cublasLtMatrixLayout_t Bdesc,
+                                                    void* C,
+                                                    cublasLtMatrixLayout_t Cdesc,
+                                                    cudaStream_t stream);
+
+typedef cublasStatus_t (*cublasLtMatrixTransformDescCreate_t)(cublasLtMatrixTransformDesc_t* transformDesc,
+                                                              cudaDataType scaleType);
+
+typedef cublasStatus_t (*cublasLtMatrixTransformDescSetAttribute_t)(  //
+    cublasLtMatrixTransformDesc_t transformDesc,
+    cublasLtMatrixTransformDescAttributes_t attr,
+    const void* buf,
+    size_t sizeInBytes);
+
+typedef cublasStatus_t (*cublasLtMatrixLayoutDestroy_t)(cublasLtMatrixLayout_t matLayout);
+
+typedef cublasStatus_t (*cublasLtMatrixTransformDescDestroy_t)(cublasLtMatrixTransformDesc_t transformDesc);
+
+typedef cublasStatus_t (*cublasLtMatmul_t)(cublasLtHandle_t lightHandle,
+                                           cublasLtMatmulDesc_t computeDesc,
+                                           const void* alpha, /* host or device pointer */
+                                           const void* A,
+                                           cublasLtMatrixLayout_t Adesc,
+                                           const void* B,
+                                           cublasLtMatrixLayout_t Bdesc,
+                                           const void* beta, /* host or device pointer */
+                                           const void* C,
+                                           cublasLtMatrixLayout_t Cdesc,
+                                           void* D,
+                                           cublasLtMatrixLayout_t Ddesc,
+                                           const cublasLtMatmulAlgo_t* algo,
+                                           void* workspace,
+                                           size_t workspaceSizeInBytes,
+                                           cudaStream_t stream);
+
+typedef cublasStatus_t (*cublasLtMatmulDescCreate_t)(cublasLtMatmulDesc_t* matmulDesc,
+                                                     cublasComputeType_t computeType,
+                                                     cudaDataType_t scaleType);
+
+typedef cublasStatus_t (*cublasLtMatmulDescDestroy_t)(cublasLtMatmulDesc_t matmulDesc);
+
+typedef cublasStatus_t (*cublasLtMatmulDescSetAttribute_t)(  //
+    cublasLtMatmulDesc_t matmulDesc,
+    cublasLtMatmulDescAttributes_t attr,
+    const void* buf,
+    size_t sizeInBytes);
+
+
+/* externs */
+extern cudaGetErrorString_t _cudaGetErrorString;
+extern cusparseGetErrorString_t _cusparseGetErrorString;
+//extern cudaMallocManaged_t _cudaMallocManaged;
+//extern cudaMemPrefetchAsync_t _cudaMemPrefetchAsync;
+//extern cudaDeviceGetAttribute_t _cudaDeviceGetAttribute;
+
+extern cusparseCreate_t _cusparseCreate;
+extern cublasCreate_v2_t _cublasCreate_v2;
+extern cublasLtCreate_t _cublasLtCreate;
+
+extern cusparseDestroySpMat_t _cusparseDestroySpMat;
+extern cusparseDestroyDnMat_t _cusparseDestroyDnMat;
+extern cusparseCreateCoo_t _cusparseCreateCoo;
+extern cusparseSpMM_t _cusparseSpMM;
+extern cusparseSpMM_bufferSize_t _cusparseSpMM_bufferSize;
+extern cusparseCreateDnMat_t _cusparseCreateDnMat;
+
+extern cudaMemset_t _cudaMemset;
+extern cudaMalloc_t _cudaMalloc;
+extern cudaFree_t _cudaFree;
+extern cudaPeekAtLastError_t _cudaPeekAtLastError;
+
+extern cublasGemmEx_t _cublasGemmEx;
+extern cublasGemmStridedBatchedEx_t _cublasGemmStridedBatchedEx;
+
+extern cublasLtMatrixLayoutCreate_t _cublasLtMatrixLayoutCreate;
+extern cublasLtMatrixLayoutSetAttribute_t _cublasLtMatrixLayoutSetAttribute;
+extern cublasLtMatrixTransform_t _cublasLtMatrixTransform;
+extern cublasLtMatrixTransformDescCreate_t _cublasLtMatrixTransformDescCreate;
+extern cublasLtMatrixTransformDescSetAttribute_t _cublasLtMatrixTransformDescSetAttribute;
+extern cublasLtMatrixLayoutDestroy_t _cublasLtMatrixLayoutDestroy;
+extern cublasLtMatrixTransformDescDestroy_t _cublasLtMatrixTransformDescDestroy;
+extern cublasLtMatmul_t _cublasLtMatmul;
+extern cublasLtMatmulDescCreate_t _cublasLtMatmulDescCreate;
+extern cublasLtMatmulDescDestroy_t _cublasLtMatmulDescDestroy;
+extern cublasLtMatmulDescSetAttribute_t _cublasLtMatmulDescSetAttribute;
+
+
+#define cudaGetErrorString _cudaGetErrorString
+#define cusparseGetErrorString _cusparseGetErrorString
+#define cusparseCreate _cusparseCreate
+#define cublasCreate_v2 _cublasCreate_v2
+#define cublasLtCreate _cublasLtCreate
+
+#define cudaMemset _cudaMemset
+#define cudaMalloc _cudaMalloc
+#define cudaFree _cudaFree
+#define cudaPeekAtLastError _cudaPeekAtLastError
+
+#define cusparseCreateCoo _cusparseCreateCoo
+#define cusparseDestroySpMat _cusparseDestroySpMat
+#define cusparseDestroyDnMat _cusparseDestroyDnMat
+#define cusparseSpMM _cusparseSpMM
+#define cusparseSpMM_bufferSize _cusparseSpMM_bufferSize
+#define cusparseCreateDnMat _cusparseCreateDnMat
+
+#define cublasGemmEx _cublasGemmEx
+#define cublasGemmStridedBatchedEx _cublasGemmStridedBatchedEx
+#define cublasLtMatrixLayoutCreate _cublasLtMatrixLayoutCreate
+#define cublasLtMatrixLayoutSetAttribute _cublasLtMatrixLayoutSetAttribute
+#define cublasLtMatrixTransform _cublasLtMatrixTransform
+#define cublasLtMatrixTransformDescCreate _cublasLtMatrixTransformDescCreate
+
+#define cublasLtMatrixTransformDescSetAttribute _cublasLtMatrixTransformDescSetAttribute
+#define cublasLtMatrixLayoutDestroy _cublasLtMatrixLayoutDestroy
+#define cublasLtMatrixTransformDescDestroy _cublasLtMatrixTransformDescDestroy
+#define cublasLtMatmul _cublasLtMatmul
+#define cublasLtMatmulDescCreate _cublasLtMatmulDescCreate
+#define cublasLtMatmulDescDestroy _cublasLtMatmulDescDestroy
+#define cublasLtMatmulDescSetAttribute _cublasLtMatmulDescSetAttribute
+
+#endif /* USE_CUDA_WRAPPER */
 
 #define CUDA_CHECK_RETURN(value) {                      \
   cudaError_t _m_cudaStat = value;                    \

@@ -26,6 +26,11 @@ try:
     lib.get_context.restype = ct.c_void_p
     lib.get_cusparse.restype = ct.c_void_p
     lib.cget_managed_ptr.restype = ct.c_void_p
+    try:
+        lib.initCudaLibs()
+    except Exception:
+        # ignore
+        pass
     COMPILED_WITH_CUDA = True
 except AttributeError as ex:
     warn("The installed version of bitsandbytes was compiled without GPU support. "

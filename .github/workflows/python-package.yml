@@ -120,15 +120,16 @@ jobs:
         [[ "${{ matrix.os }}" = windows-* ]] && python3 -m pip install ninja
         for NO_CUBLASLT in ON OFF; do
           if [ ${build_os:0:6} == ubuntu ]; then
-            image=nvidia/cuda:${{ matrix.cuda_version }}-devel-ubuntu22.04
+            image=nvidia/cuda:${{ matrix.cuda_version }}-devel-ubuntu20.04
             echo "Using image $image"
             docker run --platform linux/$build_arch -i -w /src -v $PWD:/src $image sh -c \
               "apt-get update \
-              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake \
-              && cmake -DCOMPUTE_BACKEND=cuda -DNO_CUBLASLT=${NO_CUBLASLT} . \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-pip \
+              && pip install cmake==3.27.9 \
+              && cmake -DCOMPUTE_BACKEND=cuda -DUSE_CUDA_WRAPPER=ON -DNO_CUBLASLT=${NO_CUBLASLT} . \
               && cmake --build ."
           else
-            cmake -G Ninja -DCOMPUTE_BACKEND=cuda -DNO_CUBLASLT=${NO_CUBLASLT} -DCMAKE_BUILD_TYPE=Release -S .
+            cmake -G Ninja -DCOMPUTE_BACKEND=cuda -DUSE_CUDA_WRAPPER=ON -DNO_CUBLASLT=${NO_CUBLASLT} -DCMAKE_BUILD_TYPE=Release -S .
             cmake --build . --config Release
           fi
         done
