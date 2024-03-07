@@ -4,7 +4,6 @@
 #   For MSVC: `cmake -B build . && cmake --build build --config Release`
 # You can also use the following options and variables
 #  - COMPUTE_BACKEND: Set to `cpu`, `cuda`, or `mps` to select the backend
-#  - NO_CUBLASLT: Default OFF, will skip building/linking CUBLASLT support
 #  - CUDA_VERSION: The expected CUDA version, for sanity checking. The actual version
 #                  is whatever CMake finds on your path.
 #  - COMPUTE_CAPABILITY: Which GPU Arch/Compute codes to provide to NVCC.
@@ -39,10 +38,8 @@ if(${COMPUTE_BACKEND} STREQUAL "cuda")
     if(APPLE)
         message(FATAL_ERROR "CUDA is not supported on macOS" )
     endif()
-    option(NO_CUBLASLT "Disable CUBLAS" OFF)
     set(BUILD_CUDA ON)
     set(BUILD_MPS OFF)
-    message(STATUS "NO_CUBLASLT := ${NO_CUBLASLT}")
 elseif(${COMPUTE_BACKEND} STREQUAL "mps")
     if(NOT APPLE)
         message(FATAL_ERROR "MPS is only supported on macOS" )
@@ -145,9 +142,7 @@ if(BUILD_CUDA)
     list(APPEND SRC_FILES ${CUDA_FILES})
 
     string(APPEND BNB_OUTPUT_NAME "_cuda${CUDA_VERSION_SHORT}")
-    if(NO_CUBLASLT)
-        string(APPEND BNB_OUTPUT_NAME "_nocublaslt")
-    endif()
+
     add_compile_definitions(BUILD_CUDA)
 elseif(BUILD_MPS)
     if(NOT APPLE)
@@ -173,13 +168,11 @@ else()
     set(GPU_SOURCES)
 endif()
 
-
 if(WIN32)
     # Export all symbols
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-# Weird MSVC hacks
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2 /fp:fast")
 endif()
@@ -192,12 +185,11 @@ target_include_directories(bitsandbytes PUBLIC csrc include)
 
 if(BUILD_CUDA)
     target_include_directories(bitsandbytes PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-    target_link_libraries(bitsandbytes PUBLIC CUDA::cudart CUDA::cublas CUDA::cusparse)
-    if(NO_CUBLASLT)
-        target_compile_definitions(bitsandbytes PUBLIC NO_CUBLASLT)
-    else()
-        target_link_libraries(bitsandbytes PUBLIC CUDA::cublasLt)
-    endif()
+
+    # Note: As of CUDA 11.0, cublas depends on cublasLt.
+    # See: https://gitlab.kitware.com/cmake/cmake/-/merge_requests/6857/diffs
+    # It is listed here for assurance. In CMake > 3.23.0, it's implicit when linking CUDA::cublas.
+    target_link_libraries(bitsandbytes PUBLIC CUDA::cudart CUDA::cublas CUDA::cublasLt CUDA::cusparse)
 
     set_target_properties(bitsandbytes
         PROPERTIES
@@ -220,4 +212,4 @@ if(MSVC)
     set_target_properties(bitsandbytes PROPERTIES RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PROJECT_SOURCE_DIR}/bitsandbytes")
 endif()
 
-set_target_properties(bitsandbytes PROPERTIES LIBRARY_OUTPUT_DIRECTORY bitsandbytes)
+set_target_properties(bitsandbytes PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bitsandbytes")

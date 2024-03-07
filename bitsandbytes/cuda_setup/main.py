@@ -6,7 +6,6 @@ extract factors the build is dependent on:
 - Software:
     - CPU-only: only CPU quantization functions (no optimizer, no matrix multiply)
     - CuBLAS-LT: full-build 8-bit optimizer
-    - no CuBLAS-LT: no 8-bit matrix multiplication (`nomatmul`)
 
 evaluation:
     - if paths faulty, return meaningful error
@@ -85,11 +84,6 @@ class CUDASetup:
             self.add_log_entry('CUDA SETUP: CUDA 10.0 not supported. Please use a different CUDA version.')
             self.add_log_entry('CUDA SETUP: Before you try again running bitsandbytes, make sure old CUDA 10.0 versions are uninstalled and removed from $LD_LIBRARY_PATH variables.')
             return
-
-
-        has_cublaslt = is_cublasLt_compatible(self.cc)
-        if not has_cublaslt:
-            make_cmd += '_nomatmul'
 
         self.add_log_entry('CUDA SETUP: Something unexpected happened. Please compile from source:')
         self.add_log_entry('git clone https://github.com/TimDettmers/bitsandbytes.git')
@@ -372,10 +366,6 @@ def evaluate_cuda_setup():
         "https://github.com/TimDettmers/bitsandbytes/blob/main/how_to_use_nonpytorch_cuda.md"
     )
 
-
-    # 7.5 is the minimum CC vor cublaslt
-    has_cublaslt = is_cublasLt_compatible(cc)
-
     # TODO:
     # (1) CUDA missing cases (no CUDA installed by CUDA driver (nvidia-smi accessible)
     # (2) Multiple CUDA versions installed
@@ -383,11 +373,6 @@ def evaluate_cuda_setup():
     # we use ls -l instead of nvcc to determine the cuda version
     # since most installations will have the libcudart.so installed, but not the compiler
 
-    binary_name = f"libbitsandbytes_cuda{cuda_version_string}"
-    if not has_cublaslt:
-        # if not has_cublaslt (CC < 7.5), then we have to choose _nocublaslt
-        binary_name += "_nocublaslt"
-
-    binary_name = f"{binary_name}{DYNAMIC_LIBRARY_SUFFIX}"
+    binary_name = f"libbitsandbytes_cuda{cuda_version_string}{DYNAMIC_LIBRARY_SUFFIX}"
 
     return binary_name, cudart_path, cc, cuda_version_string

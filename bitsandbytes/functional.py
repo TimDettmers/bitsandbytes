@@ -1960,7 +1960,7 @@ def igemmlt(A, B, SA, SB, out=None, Sout=None, dtype=torch.int32):
             )
 
     if has_error == 100:  # `ERR_NOT_IMPLEMENTED` is defined as 100 in `ops.cu`
-        raise NotImplementedError("igemmlt not available (probably built with NO_CUBLASLT)")
+        raise NotImplementedError("igemmlt not available (probably CC < 7.5)")
 
     if has_error:
         print(f'A: {shapeA}, B: {shapeB}, C: {Sout[0]}; (lda, ldb, ldc): {(lda, ldb, ldc)}; (m, n, k): {(m, n, k)}')
