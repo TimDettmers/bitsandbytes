@@ -9,3 +9,9 @@ updates:
         update-types: [major]
       minor-patch:
         update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - update-types: [ "version-update:semver-major" ]
