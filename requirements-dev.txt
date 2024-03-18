@@ -1,9 +1,0 @@
-# Requirements used for local development
-setuptools>=63
-pytest~=7.2.2
-einops~=0.6.0
-wheel~=0.40.0
-lion-pytorch~=0.0.6
-scipy~=1.11.4
-pandas~=2.2.0
-matplotlib~=3.8.2

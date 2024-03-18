@@ -1,6 +1,78 @@
 [build-system]
-requires = [ "setuptools", "wheel" ]
+requires = ["setuptools >= 63.0.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "bitsandbytes"
+dynamic = ["version"]
+description = "k-bit optimizers and matrix multiplication routines."
+authors = [{name="Tim Dettmers", email="dettmers@cs.washington.edu"}]
+requires-python = ">=3.8"
+readme = "README.md"
+license = {file="LICENSE"}
+keywords = [
+    "gpu",
+    "optimizers",
+    "optimization",
+    "8-bit",
+    "quantization",
+    "compression"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Environment :: GPU :: NVIDIA CUDA :: 11",
+    "Environment :: GPU :: NVIDIA CUDA :: 12",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+dependencies = [
+    "torch>=1.11,!=1.12.0",
+    "numpy>=1.17"
+]
+
+[project.optional-dependencies]
+benchmark = ["pandas", "matplotlib"]
+docs = ["hf-doc-builder==0.5.0"]
+dev = [
+    "bitsandbytes[test]",
+    "build>=1.0.0,<2",
+    "ruff==0.3.2",
+    "pre-commit>=3.5.0,<4",
+    "wheel>=0.42,<1"
+]
+test = [
+    "einops~=0.6.0",
+    "lion-pytorch==0.0.6",
+    "pytest~=7.4",
+    "scipy>=1.10.1,<2; python_version < '3.9'",
+    "scipy>=1.11.4,<2; python_version >= '3.9'",
+    "transformers>=4.30.1,<5"
+]
+triton = ["triton~=2.0.0; sys_platform=='linux' and platform_machine=='x86_64'"]
+
+[project.urls]
+homepage = "https://github.com/TimDettmers/bitsandbytes"
+changelog = "https://github.com/TimDettmers/bitsandbytes/blob/main/CHANGELOG.md"
+docs = "https://huggingface.co/docs/bitsandbytes/main"
+issues = "https://github.com/TimDettmers/bitsandbytes/issues"
+
+[tool.setuptools]
+package-data = { "*" = ["libbitsandbytes*.*"] }
+
+[tool.setuptools.dynamic]
+version = {attr = "bitsandbytes.__version__"}
 
 [tool.ruff]
 src = [
