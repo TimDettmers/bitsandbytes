@@ -20,6 +20,7 @@ import ctypes as ct
 import logging
 import os
 from pathlib import Path
+from typing import Callable, Optional
 
 import torch
 
@@ -69,7 +70,7 @@ class BNBNativeLibrary:
     def __init__(self, lib: ct.CDLL):
         self._lib = lib
 
-    def __getattr__(self, item):
+    def __getattr__(self, item) -> Optional[Callable]:
         return getattr(self._lib, item)
 
 
