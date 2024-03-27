@@ -1,3 +1,5 @@
+import gc
+
 import pytest
 import torch
 
@@ -18,6 +20,13 @@ def pytest_runtest_call(item):
         if "Found no NVIDIA driver on your system" in str(re):
             pytest.skip("No NVIDIA driver found")
         raise
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_teardown(item, nextitem):
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 @pytest.fixture(scope="session")
