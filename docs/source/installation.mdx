@@ -1,9 +1,9 @@
 # Installation
 
-bitsandbytes is only supported on CUDA GPUs for CUDA versions **11.0 - 12.3**. Select your operating system below to see the installation instructions.
+bitsandbytes is only supported on CUDA GPUs for CUDA versions **11.0 - 12.3**.
 
-<hfoptions id="OS system">
-<hfoption id="Linux">
+> [!TIP]
+> MacOS support is still a work in progress! Subscribe to this [issue](https://github.com/TimDettmers/bitsandbytes/issues/1020) to get notified about discussions and to track the integration progress.
 
 For Linux systems, make sure your hardware meets the following requirements to use bitsandbytes features.
 
@@ -22,6 +22,11 @@ pip install bitsandbytes
 ```
 
 ## Compile from source
+
+For Linux and Windows systems, you can compile bitsandbytes from source. Installing from source allows for more build options with different CMake configurations.
+
+<hfoptions id="source">
+<hfoption id="Linux">
 
 To compile from source, you need CMake >= **3.22.1** and Python >= **3.8** installed. Make sure you have a compiler installed to compile C++ (gcc, make, headers, etc.). For example, to install a compiler and CMake on Ubuntu:
 
@@ -49,7 +54,7 @@ pip install .
 
 Windows systems require Visual Studio with C++ support as well as an installation of the CUDA SDK.
 
-You'll need to build bitsandbytes from source. To compile from source, you need CMake >= **3.22.1** and Python >= **3.8** installed. You should also install CUDA Toolkit by following the [CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html) guide from NVIDIA.
+To compile from source, you need CMake >= **3.22.1** and Python >= **3.8** installed. You should also install CUDA Toolkit by following the [CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html) guide from NVIDIA.
 
 ```bash
 git clone https://github.com/TimDettmers/bitsandbytes.git && cd bitsandbytes/
@@ -60,12 +65,6 @@ python -m build --wheel
 ```
 
 Big thanks to [wkpark](https://github.com/wkpark), [Jamezo97](https://github.com/Jamezo97), [rickardp](https://github.com/rickardp), [akx](https://github.com/akx) for their amazing contributions to make bitsandbytes compatible with Windows.
-
-</hfoption>
-<hfoption id="MacOS">
-
-> [!TIP]
-> MacOS support is still a work in progress! Subscribe to this [issue](https://github.com/TimDettmers/bitsandbytes/issues/1020) to get notified about discussions and to track the integration progress.
 
 </hfoption>
 </hfoptions>
