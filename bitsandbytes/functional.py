@@ -1520,9 +1520,9 @@ def dequantize_no_absmax(A: Tensor, code: Tensor, out: Optional[torch.Tensor] = 
 
 def optimizer_update_32bit(
     optimizer_name: str,
-    g: Tensor,
-    p: Tensor,
-    state1: Tensor,
+    g: torch.Tensor,
+    p: torch.Tensor,
+    state1: torch.Tensor,
     beta1: float,
     eps: float,
     step: int,
@@ -1534,6 +1534,7 @@ def optimizer_update_32bit(
     unorm_vec: Optional[torch.Tensor] = None,
     max_unorm: float = 0.0,
     skip_zeros=False,
+    return_updates: Optional[torch.Tensor] = None,
 ) -> None:
     """
     Performs an inplace optimizer update with one or two optimizer states.
@@ -1572,6 +1573,8 @@ def optimizer_update_32bit(
         The maximum update norm relative to the weight norm.
     skip_zeros : bool
         Whether to skip zero-valued gradients or not (default: False).
+    return_updates: Optional[torch.Tensor]
+        When provided, updates are written to this tensor and not applied directly to `p`. (default: None)
     """
 
     param_norm = 0.0
@@ -1595,6 +1598,7 @@ def optimizer_update_32bit(
     optim_func(
         get_ptr(g),
         get_ptr(p),
+        get_ptr(return_updates),
         get_ptr(state1),
         get_ptr(state2),
         get_ptr(unorm_vec),
@@ -1615,25 +1619,26 @@ def optimizer_update_32bit(
 
 def optimizer_update_8bit(
     optimizer_name: str,
-    g: Tensor,
-    p: Tensor,
-    state1: Tensor,
+    g: torch.Tensor,
+    p: torch.Tensor,
+    state1: torch.Tensor,
     state2: Optional[torch.Tensor],
     beta1: float,
     beta2: float,
     eps: float,
     step: int,
     lr: float,
-    qmap1: Tensor,
+    qmap1: torch.Tensor,
     qmap2: Optional[torch.Tensor],
-    max1: Tensor,
+    max1: torch.Tensor,
     max2: Optional[torch.Tensor],
-    new_max1: Tensor,
+    new_max1: torch.Tensor,
     new_max2: Optional[torch.Tensor],
     weight_decay: float = 0.0,
     gnorm_scale: float = 1.0,
     unorm_vec: Optional[torch.Tensor] = None,
     max_unorm: float = 0.0,
+    return_updates: Optional[torch.Tensor] = None,
 ) -> None:
     """
     Performs an inplace Adam update.
@@ -1683,6 +1688,8 @@ def optimizer_update_8bit(
         The tensor for the update norm.
     max_unorm : float
         The maximum update norm relative to the weight norm.
+    return_updates: Optional[torch.Tensor]
+        When provided, updates are written to this tensor and not applied directly to `p`. (default: None)
     """
 
     param_norm = 0.0
@@ -1695,6 +1702,7 @@ def optimizer_update_8bit(
         str2optimizer8bit[optimizer_name][0](
             get_ptr(p),
             get_ptr(g),
+            get_ptr(return_updates),
             get_ptr(state1),
             get_ptr(state2),
             get_ptr(unorm_vec),
@@ -1719,6 +1727,7 @@ def optimizer_update_8bit(
         str2optimizer8bit[optimizer_name][1](
             get_ptr(p),
             get_ptr(g),
+            get_ptr(return_updates),
             get_ptr(state1),
             get_ptr(state2),
             get_ptr(unorm_vec),
@@ -1764,6 +1773,7 @@ def optimizer_update_8bit_blockwise(
     weight_decay: float = 0.0,
     gnorm_scale: float = 1.0,
     skip_zeros=False,
+    return_updates: Optional[torch.Tensor] = None,
 ) -> None:
     optim_func = None
     prev_device = pre_call(g.device)
@@ -1790,6 +1800,7 @@ def optimizer_update_8bit_blockwise(
     optim_func(
         get_ptr(p),
         get_ptr(g),
+        get_ptr(return_updates),
         get_ptr(state1),
         get_ptr(state2),
         ct.c_float(beta1),

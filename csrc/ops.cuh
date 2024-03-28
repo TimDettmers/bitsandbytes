@@ -150,12 +150,13 @@ void dequantize(float *code, unsigned char *A, float *out, int n);
 template <typename T, int STOCHASTIC, int DATA_TYPE> void quantizeBlockwise(float * code, T *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
 template<typename T, int DATA_TYPE> void dequantizeBlockwise(float *code, unsigned char *A, float *absmax, T *out, int block_size, const int n);
 
-template<typename T, int OPTIMIZER> void optimizer32bit(T* g, T* p,
+template<typename T, int OPTIMIZER> void optimizer32bit(T* g, T* p, T* return_updates,
                 float* state1, float* state2, float *unorm, float max_unorm, float param_norm,
                 float beta1, float beta2, float eps, float weight_decay,
                 int step, float lr, const float gnorm_scale, bool skip_zeros, int n);
 
-template<typename T, int OPTIMIZER> void optimizerStatic8bit(T* p, T* g, unsigned char* state1, unsigned char* state2,
+template<typename T, int OPTIMIZER> void optimizerStatic8bit(T* p, T* g, T* return_updates,
+                unsigned char* state1, unsigned char* state2,
                 float *unorm, float max_unorm, float param_norm,
                 float beta1, float beta2,
                 float eps, int step, float lr,
@@ -164,7 +165,7 @@ template<typename T, int OPTIMIZER> void optimizerStatic8bit(T* p, T* g, unsigne
                 float weight_decay,
                 const float gnorm_scale, int n);
 
-template<typename T, int OPTIMIZER> void optimizerStatic8bitBlockwise(T* p, T* g,
+template<typename T, int OPTIMIZER> void optimizerStatic8bitBlockwise(T* p, T* g, T* return_updates,
                 unsigned char* state1, unsigned char* state2, float beta1, float beta2, float eps, int step, float lr,
                 float* quantiles1, float* quantiles2, float* absmax1, float* absmax2, float weight_decay, const float gnorm_scale,
 								bool skip_zeros, int n);

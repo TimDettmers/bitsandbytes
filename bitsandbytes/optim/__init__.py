@@ -9,6 +9,7 @@ from .adamw import (
     AdamW,
     AdamW8bit,
     AdamW32bit,
+    GaLoreAdamW8bit,
     PagedAdamW,
     PagedAdamW8bit,
     PagedAdamW32bit,
