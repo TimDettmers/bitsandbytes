@@ -12,6 +12,8 @@
     title: 8-bit optimizers
   - local: algorithms
     title: Algorithms
+  - local: fsdp_qlora
+    title: FSDP-QLoRA
   - local: integrations
     title: Integrations
   - local: errors
