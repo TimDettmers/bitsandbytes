@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from . import research, utils
+from .cextension import lib
 from .autograd._functions import (
     MatmulLtState,
     bmm_cublas,
@@ -13,8 +14,12 @@ from .autograd._functions import (
     mm_cublas,
 )
 from .nn import modules
-from .optim import adam
 
+if lib and lib.compiled_with_cuda:
+    from .backends import register_backend
+    from .backends.cuda import CUDABackend
+    from .optim import adam
+    register_backend("cuda", CUDABackend())
 __pdoc__ = {
     "libbitsandbytes": False,
     "optim.optimizer.Optimizer8bit": False,
