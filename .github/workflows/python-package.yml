@@ -122,37 +122,44 @@ jobs:
             arch: aarch64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          pattern: "shared_library*_${{ matrix.os }}_${{ matrix.arch }}*"
-          path: output/
-      - name: Copy correct platform shared library
-        shell: bash
-        run: |
-          ls -lR output/
-          cp output/${{ matrix.os }}/${{ matrix.arch }}/* bitsandbytes/
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - run: pip install build wheel
-      - run: python -m build .
-      - name: Determine and Set Platform Tag, then Tag Wheel
-        shell: bash
-        run: |
-          PLATFORM_TAG=$(python .github/scripts/set_platform_tag.py "${{ matrix.arch }}")
-          echo "PLATFORM_TAG=$PLATFORM_TAG"
-          wheel tags --remove --abi-tag=none --python-tag=py3 --platform-tag=$PLATFORM_TAG dist/bitsandbytes-*.whl
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bdist_wheel_${{ matrix.os }}_${{ matrix.arch }}
-          path: dist/bitsandbytes-*.whl
-          retention-days: 7
+      # Check out code
+    - uses: actions/checkout@v4
+      # Download shared libraries
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true
+        pattern: "shared_library*_${{ matrix.os }}_${{ matrix.arch }}*"
+        path: output/
+    - name: Copy correct platform shared library
+      shell: bash
+      run: |
+        ls -lR output/
+        cp output/${{ matrix.os }}/${{ matrix.arch }}/* bitsandbytes/
+      # Set up the Python version needed
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+    - name: Install build package
+      shell: bash
+      run: pip install build wheel
+    - name: Build wheel
+      shell: bash
+      run: python -m build .
+    - name: Determine and Set Platform Tag, then Tag Wheel
+      shell: bash
+      run: |
+        PLATFORM_TAG=$(python .github/scripts/set_platform_tag.py "${{ matrix.arch }}")
+        echo "PLATFORM_TAG=$PLATFORM_TAG"
+        wheel tags --remove --abi-tag=none --python-tag=py3 --platform-tag=$PLATFORM_TAG dist/bitsandbytes-*.whl
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: bdist_wheel_${{ matrix.os }}_${{ matrix.arch }}
+        path: dist/bitsandbytes-*.whl
+        retention-days: 7
 
   audit-wheels:
     needs: build-wheels

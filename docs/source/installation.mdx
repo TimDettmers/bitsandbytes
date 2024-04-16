@@ -80,10 +80,9 @@ Refer to the following table if you're using another CUDA Toolkit version.
 
 ```bash
 git clone https://github.com/TimDettmers/bitsandbytes.git && cd bitsandbytes/
-pip install -r requirements-dev.txt
 cmake -DCOMPUTE_BACKEND=cuda -S .
 cmake --build . --config Release
-python -m build --wheel
+pip install .
 ```
 
 Big thanks to [wkpark](https://github.com/wkpark), [Jamezo97](https://github.com/Jamezo97), [rickardp](https://github.com/rickardp), [akx](https://github.com/akx) for their amazing contributions to make bitsandbytes compatible with Windows.
