@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 import bitsandbytes as bnb
+from bitsandbytes.cextension import HIP_ENVIRONMENT
 from tests.helpers import id_formatter
 
 
@@ -298,6 +299,7 @@ class Linear8bit(nn.Module):
         return LinearFunction.apply(x, self.weight, self.bias, self.args)
 
 
+@pytest.mark.skipif(HIP_ENVIRONMENT, reason="this test is not supported on ROCm yet")
 @pytest.mark.parametrize("threshold", [0.0, 3.0], ids=id_formatter("threshold"))
 def test_linear8bitlt_inference(threshold):
     l1 = bnb.nn.Linear8bitLt(32, 64, threshold=threshold).cuda().half()
@@ -312,6 +314,7 @@ def test_linear8bitlt_inference(threshold):
             assert l1.state.CxB is not None
 
 
+@pytest.mark.skipif(HIP_ENVIRONMENT, reason="this test is not supported on ROCm yet")
 def test_linear8bitlt_accumulated_gradient():
     l1 = torch.nn.Sequential(*[bnb.nn.Linear8bitLt(32, 32).cuda().half() for i in range(2)])
     l2 = torch.nn.Sequential(*[torch.nn.Linear(32, 32).cuda().half() for i in range(2)])
@@ -525,6 +528,7 @@ module_dict = {
 }
 
 
+@pytest.mark.skipif(HIP_ENVIRONMENT, reason="this test is not supported on ROCm yet")
 @pytest.mark.parametrize("module", module_dict.values(), ids=module_dict.keys())
 def test_kbit_backprop(module):
     b = 17

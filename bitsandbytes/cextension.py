@@ -24,7 +24,7 @@ from pathlib import Path
 import torch
 
 from bitsandbytes.consts import DYNAMIC_LIBRARY_SUFFIX, PACKAGE_DIR
-from bitsandbytes.cuda_specs import CUDASpecs, get_cuda_specs
+from bitsandbytes.cuda_specs import CUDASpecs, get_cuda_specs, get_rocm_gpu_arch
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,11 @@ def get_cuda_bnb_library_path(cuda_specs: CUDASpecs) -> Path:
 
     The library is not guaranteed to exist at the returned path.
     """
+    if torch.version.hip:
+        if BNB_HIP_VERSION < 601:
+            return PACKAGE_DIR / f"libbitsandbytes_hip_nohipblaslt{DYNAMIC_LIBRARY_SUFFIX}"
+        else:
+            return PACKAGE_DIR / f"libbitsandbytes_hip{DYNAMIC_LIBRARY_SUFFIX}"
     library_name = f"libbitsandbytes_cuda{cuda_specs.cuda_version_string}"
     if not cuda_specs.has_cublaslt:
         # if not has_cublaslt (CC < 7.5), then we have to choose _nocublaslt
@@ -79,7 +84,10 @@ class CudaBNBNativeLibrary(BNBNativeLibrary):
     def __init__(self, lib: ct.CDLL):
         super().__init__(lib)
         lib.get_context.restype = ct.c_void_p
-        lib.get_cusparse.restype = ct.c_void_p
+        if torch.version.cuda:
+            lib.get_cusparse.restype = ct.c_void_p
+        elif torch.version.hip:
+            lib.get_hipsparse.restype = ct.c_void_p
         lib.cget_managed_ptr.restype = ct.c_void_p
 
 
@@ -105,7 +113,14 @@ def get_native_library() -> BNBNativeLibrary:
     return BNBNativeLibrary(dll)
 
 
+ROCM_GPU_ARCH = get_rocm_gpu_arch()
+
 try:
+    if torch.version.hip:
+        hip_major, hip_minor = map(int, torch.version.hip.split(".")[0:2])
+        HIP_ENVIRONMENT, BNB_HIP_VERSION = True, hip_major * 100 + hip_minor
+    else:
+        HIP_ENVIRONMENT, BNB_HIP_VERSION = False, 0
     lib = get_native_library()
 except Exception as e:
     lib = None

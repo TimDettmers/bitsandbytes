@@ -1,0 +1,46 @@
+# ROCm Installation
+
+Please follow these steps to install bitsandbytes on ROCm.
+
+<hfoptions id="rocm_install">
+<hfoption id="latest">
+
+For latest installation:
+
+```bash
+git clone https://github.com/TimDettmers/bitsandbytes.git && cd bitsandbytes/
+pip install -r requirements-dev.txt
+cmake -DCOMPUTE_BACKEND=hip -S . #Use -DBNB_ROCM_ARCH="gfx90a;gfx942" to target specific gpu arch
+make
+pip install .
+```
+
+<hfoption>
+<hfoption id="version specific">
+
+For ROCm specific versions:
+
+Install Dependencies:
+
+```bash
+# hipblaslt installation needed only for rocm<6.0
+apt install hipblaslt
+pip install --upgrade pip
+pip install einops lion_pytorch accelerate
+pip install git+https://github.com/ROCm/transformers.git
+```
+
+Install bitsandbytes from [ROCm](https://github.com/ROCm/bitsandbytes) repo:
+
+```bash
+git clone --recurse https://github.com/ROCm/bitsandbytes
+cd bitsandbytes
+# Checkout branch as needed
+# for rocm 5.7 - rocm5.7_internal_testing
+# for rocm 6.x - rocm6.2_internal_testing
+git checkout <branch>
+make hip
+python setup.py install
+```
+<hfoption>
+</hfoptions>

@@ -4,6 +4,7 @@ import math
 import pytest
 import torch
 
+from bitsandbytes.cextension import HIP_ENVIRONMENT
 from tests.helpers import TRUE_FALSE, describe_dtype, id_formatter
 
 transformers = pytest.importorskip("transformers")
@@ -71,6 +72,7 @@ def model_and_tokenizer(request):
     del model
 
 
+@pytest.mark.skipif(HIP_ENVIRONMENT, reason="this test is not supported on ROCm yet")
 @pytest.mark.parametrize("DQ", TRUE_FALSE, ids=id_formatter("dq"))
 @pytest.mark.parametrize("inference_kernel", TRUE_FALSE, ids=id_formatter("inference_kernel"))
 @pytest.mark.parametrize("dtype", [torch.float16], ids=describe_dtype)

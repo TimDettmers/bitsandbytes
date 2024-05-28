@@ -62,3 +62,10 @@ DTYPE_NAMES = {
 
 def describe_dtype(dtype: torch.dtype) -> str:
     return DTYPE_NAMES.get(dtype) or str(dtype).rpartition(".")[2]
+
+
+def get_blocksizes(hip_env: bool) -> List[int]:
+    if not hip_env:
+        return [4096, 2048, 1024, 512, 256, 128, 64]
+    else:
+        return [4096, 2048, 1024, 512, 256, 128]

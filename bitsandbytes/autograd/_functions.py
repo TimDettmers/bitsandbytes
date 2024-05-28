@@ -7,6 +7,7 @@ from warnings import warn
 
 import torch
 
+from bitsandbytes.cextension import BNB_HIP_VERSION
 import bitsandbytes.functional as F
 
 
@@ -94,6 +95,9 @@ def undo_layout(permuted_tensor: torch.Tensor, tile_indices: torch.LongTensor) -
     :param tile_indices: reverse transformation indices, from get_inverse_transform_indices
     :return: contiguous row-major tensor
     """
+    # CPU has no change on layout
+    if permuted_tensor.device.type == "cpu":
+        return permuted_tensor
     (rows, cols), (tile_rows, tile_cols) = permuted_tensor.shape, tile_indices.shape
     assert rows % tile_rows == cols % tile_cols == 0, "tensor must contain a whole number of tiles"
     tensor = permuted_tensor.reshape(-1, tile_indices.numel()).t()
@@ -217,6 +221,10 @@ matmul_cublas = MatMul8bit.apply
 
 def supports_igemmlt(device: torch.device) -> bool:
     """check if this device supports the optimized int8 kernel"""
+    if device == torch.device("cpu"):
+        return True
+    if torch.version.hip:
+        return False if BNB_HIP_VERSION < 601 else True
     if torch.cuda.get_device_capability(device=device) < (7, 5):
         return False
     device_name = torch.cuda.get_device_name(device=device)
@@ -312,13 +320,16 @@ class MatMul8bitLt(torch.autograd.Function):
             state.outlier_pool = GlobalOutlierPooler.get_instance()
 
         # Cast A to fp16
-        if A.dtype != torch.float16:
-            warnings.warn(f"MatMul8bitLt: inputs will be cast from {A.dtype} to float16 during quantization")
+        A_dtype = torch.float16
+        if A.device == torch.device("cpu"):
+            A_dtype = torch.bfloat16
+        if A.dtype != A_dtype:
+            warnings.warn(f"MatMul8bitLt: inputs will be cast from {A.dtype} to {A_dtype} during quantization")
 
         # 1. Quantize A
         if len(A.shape) == 3:
             A = A.reshape(-1, A.shape[-1])
-        CA, CAt, SCA, SCAt, coo_tensorA = F.double_quant(A.to(torch.float16), threshold=state.threshold)
+        CA, CAt, SCA, SCAt, coo_tensorA = F.double_quant(A.to(A_dtype), threshold=state.threshold)
 
         if state.threshold > 0.0 and coo_tensorA is not None:
             if state.has_fp16_weights:
@@ -393,7 +404,7 @@ class MatMul8bitLt(torch.autograd.Function):
         if using_igemmlt:
             C32A, SA = F.transform(CA, "col32")
             out32, Sout32 = F.igemmlt(C32A, state.CxB, SA, state.SB)
-            if bias is None or bias.dtype == torch.float16:
+            if bias is None or bias.dtype == A_dtype:
                 # we apply the fused bias here
                 output = F.mm_dequant(out32, Sout32, SCA, state.SCB, bias=bias)
                 output = output.to(A.dtype)
@@ -564,7 +575,8 @@ def matmul_4bit(
     bias=None,
 ):
     assert quant_state is not None
-    if A.numel() == A.shape[-1] and A.requires_grad == False:
+    if (A.numel() == A.shape[-1] or A.device.type == "cpu") and A.requires_grad == False:
+        # CPU backend does not require A to be a vector
         if A.shape[-1] % quant_state.blocksize != 0:
             warn(
                 f"Some matrices hidden dimension is not a multiple of {quant_state.blocksize} and efficient inference kernels are not supported for these (slow). Matrix input size found: {A.shape}",

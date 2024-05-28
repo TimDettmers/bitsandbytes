@@ -6,6 +6,7 @@ import warnings
 import torch
 
 from bitsandbytes.autograd._functions import GlobalOutlierPooler, MatmulLtState
+from bitsandbytes.cextension import HIP_ENVIRONMENT
 import bitsandbytes.functional as F
 
 
@@ -365,7 +366,10 @@ class SwitchBackBnb(torch.autograd.Function):
 def get_block_sizes(input_matrix, weight_matrix):
     input_features = input_matrix.shape[-1]
     output_features = weight_matrix.shape[0] if weight_matrix.shape[1] == input_features else weight_matrix.shape[1]
-    array = [4096, 2048, 1024, 512, 256, 128, 64, 0]
+    if not HIP_ENVIRONMENT:
+        array = [4096, 2048, 1024, 512, 256, 128, 64, 0]
+    else:
+        array = [4096, 2048, 1024, 512, 256, 128, 0]
     bsz, bsz2 = 1024, 1024
     for i, k in enumerate(array):
         if input_features > array[i + 1]:
