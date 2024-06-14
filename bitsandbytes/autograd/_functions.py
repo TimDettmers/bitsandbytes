@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from functools import reduce  # Required in Python 3
 import operator
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Literal, Optional, Tuple, Union
 import warnings
 from warnings import warn
 
@@ -106,7 +106,14 @@ def undo_layout(permuted_tensor: torch.Tensor, tile_indices: torch.LongTensor) -
 
 class MatMul8bit(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, A, B, out=None, quant_type="vector", precision=None):
+    def forward(
+        ctx,
+        A: torch.Tensor,
+        B: torch.Tensor,
+        out=None,
+        quant_type: F.VectorwiseQuantType = "vector",
+        precision: Optional[List[int]] = None,
+    ):
         if precision is None:
             precision = [8, 8, 8]
         if precision[0] != 8:
@@ -215,7 +222,7 @@ bmm_cublas = MatMul8bit.apply
 matmul_cublas = MatMul8bit.apply
 
 
-def supports_igemmlt(device: torch.device) -> bool:
+def supports_igemmlt(device: Union[int, str, torch.device, None]) -> bool:
     """check if this device supports the optimized int8 kernel"""
     if torch.cuda.get_device_capability(device=device) < (7, 5):
         return False
@@ -226,7 +233,7 @@ def supports_igemmlt(device: torch.device) -> bool:
     return True
 
 
-def _get_tile_size(format):
+def _get_tile_size(format: Literal["col_turing", "col_ampere"]) -> Tuple[int, int]:
     assert format in (
         "col_turing",
         "col_ampere",
@@ -234,7 +241,7 @@ def _get_tile_size(format):
     return (8, 32) if format == "col_turing" else (32, 32)
 
 
-def get_tile_inds(format, device):
+def get_tile_inds(format: F.TransformOrder, device: Union[int, str, torch.device]):
     transform = lambda x: F.transform(x.to(device), from_order="row", to_order=format)[0].to(x.device)
     with torch.no_grad():
         return get_inverse_transform_indices(transform, _get_tile_size(format)).to(device)
@@ -287,7 +294,7 @@ class MatMul8bitLt(torch.autograd.Function):
     # backward is mostly the same, but adds one extra clause (see "elif state.CxB is not None")
 
     @staticmethod
-    def forward(ctx, A, B, out=None, bias=None, state=MatmulLtState):
+    def forward(ctx, A: torch.Tensor, B: torch.Tensor, out=None, bias=None, state: Optional[MatmulLtState] = None):
         using_igemmlt = supports_igemmlt(A.device) and not state.force_no_igemmlt
         # default of pytorch behavior if inputs are empty
         ctx.is_empty = False
@@ -490,7 +497,14 @@ class MatMul4Bit(torch.autograd.Function):
     # backward is mostly the same, but adds one extra clause (see "elif state.CxB is not None")
 
     @staticmethod
-    def forward(ctx, A, B, out=None, bias=None, quant_state: Optional[F.QuantState] = None):
+    def forward(
+        ctx,
+        A: torch.Tensor,
+        B: torch.Tensor,
+        out=None,
+        bias=None,
+        quant_state: Optional[F.QuantState] = None,
+    ):
         # default of pytorch behavior if inputs are empty
         ctx.is_empty = False
         if prod(A.shape) == 0:
@@ -520,7 +534,7 @@ class MatMul4Bit(torch.autograd.Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output: torch.Tensor):
         if ctx.is_empty:
             bias_grad = None if ctx.bias is None else torch.zeros_like(ctx.bias)
             return torch.zeros_like(ctx.A), torch.zeros_like(ctx.B), None, bias_grad, None

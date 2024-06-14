@@ -1,12 +1,13 @@
 import json
 import shlex
 import subprocess
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 import torch
+import torch.utils.hooks
 
 
-def outlier_hook(module, input):
+def outlier_hook(module: torch.nn.Linear, input: torch.Tensor):
     assert isinstance(module, torch.nn.Linear)
     tracer = OutlierTracer.get_instance()
     hvalue = tracer.get_hvalue(module.weight)
@@ -45,14 +46,14 @@ class OutlierTracer:
     def __init__(self):
         raise RuntimeError("Call get_instance() instead")
 
-    def initialize(self, model):
+    def initialize(self, model: torch.nn.Module):
         self.last_w = None
         self.current_outlier_dims = None
         self.hvalues = []
         self.outliers = []
         self.hvalue2outlier_idx = {}
         self.initialized = True
-        self.hooks = []
+        self.hooks: List[torch.utils.hooks.RemovableHandle] = []
 
         for n, m in model.named_modules():
             if isinstance(m, torch.nn.Linear):
@@ -61,10 +62,10 @@ class OutlierTracer:
     def is_initialized(self):
         return getattr(self, "initialized", False)
 
-    def get_hvalue(self, weight):
+    def get_hvalue(self, weight: torch.Tensor) -> int:
         return weight.data.storage().data_ptr()
 
-    def get_outliers(self, weight):
+    def get_outliers(self, weight: torch.Tensor):
         if not self.is_initialized():
             print("Outlier tracer is not initialized...")
             return None
@@ -81,7 +82,7 @@ class OutlierTracer:
         return cls._instance
 
 
-def find_outlier_dims(weight, reduction_dim=0, zscore=4.0, topk=None, rdm=False):
+def find_outlier_dims(weight: torch.Tensor, reduction_dim=0, zscore=4.0, topk: Optional[int] = None, rdm=False):
     if rdm:
         return torch.randint(0, weight.shape[1], size=(topk,), device=weight.device).long()
 
@@ -122,9 +123,9 @@ def execute_and_return(command_string: str) -> Tuple[str, str]:
 
 
 def replace_linear(
-    model,
-    linear_replacement,
-    skip_modules=("lm_head",),
+    model: torch.nn.Module,
+    linear_replacement: torch.nn.Module,
+    skip_modules: Optional[List[str]] = ("lm_head",),
     copy_weights=False,
     post_processing_function=None,
 ):
@@ -183,7 +184,7 @@ def pack_dict_to_tensor(source_dict):
     return tensor_data
 
 
-def unpack_tensor_to_dict(tensor_data):
+def unpack_tensor_to_dict(tensor_data: torch.Tensor):
     """
     Unpack a torch tensor into a Python dictionary.
 

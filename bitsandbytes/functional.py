@@ -6,7 +6,7 @@ import ctypes as ct
 from functools import reduce  # Required in Python 3
 import itertools
 import operator
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -195,7 +195,7 @@ def get_paged(*shape, dtype=torch.float32, device=FIRST_CUDA_DEVICE):
     return out
 
 
-def prefetch_tensor(A, to_cpu=False):
+def prefetch_tensor(A: torch.Tensor, to_cpu=False):
     assert A.is_paged, "Only paged tensors can be prefetched!"
     if to_cpu:
         deviceid = -1
@@ -206,8 +206,14 @@ def prefetch_tensor(A, to_cpu=False):
     lib.cprefetch(get_ptr(A), ct.c_size_t(num_bytes), ct.c_int32(deviceid))
 
 
-def elementwise_func(func_name, A, B, value, prefetch=True):
-    func = None
+def elementwise_func(
+    func_name: str,
+    A: torch.Tensor,
+    B: Optional[torch.Tensor],
+    value: Union[float, int],
+    prefetch=True,
+):
+    func: Optional[Callable] = None
     if A.dtype == torch.float32:
         func = getattr(lib, f"c{func_name}_fp32", None)
         cvalue = ct.c_float(value)
@@ -233,7 +239,7 @@ def elementwise_func(func_name, A, B, value, prefetch=True):
         torch.cuda.synchronize()
 
 
-def fill(A, value, device=None, prefetch=True):
+def fill(A, value: Union[float, int], device=None, prefetch=True):
     elementwise_func("fill", A, None, value)
 
 
@@ -391,7 +397,7 @@ def create_dynamic_map(signed=True, max_exponent_bits=7, total_bits=8):
     return Tensor(data)
 
 
-def create_quantile_map(A, total_bits=8):
+def create_quantile_map(A: torch.Tensor, total_bits=8):
     q = estimate_quantiles(A, num_quantiles=2**total_bits - 1)
     q = q.tolist()
     q.append(0)
@@ -418,7 +424,7 @@ def get_special_format_str():
     return "col_turing"
 
 
-def is_on_gpu(tensors):
+def is_on_gpu(tensors: Iterable[Optional[torch.Tensor]]):
     on_gpu = True
     gpu_ids = set()
     for t in tensors:
@@ -458,17 +464,25 @@ def get_ptr(A: Optional[Tensor]) -> Optional[ct.c_void_p]:
         return ct.c_void_p(A.data.data_ptr())
 
 
-def pre_call(device):
+def pre_call(device: Union[int, str, torch.device]):
     prev_device = torch.cuda.current_device()
     torch.cuda.set_device(device)
     return prev_device
 
 
-def post_call(prev_device):
+def post_call(prev_device: Union[int, str, torch.device]):
     torch.cuda.set_device(prev_device)
 
 
-def get_transform_func(dtype, orderA, orderOut, transpose=False):
+TransformOrder = Literal["row", "col", "col32", "col_turing", "col_ampere"]
+
+
+def get_transform_func(
+    dtype: torch.dtype,
+    orderA: TransformOrder,
+    orderOut: TransformOrder,
+    transpose=False,
+) -> Callable[[Any, Optional[ct.c_void_p], Optional[ct.c_void_p], ct.c_int32, ct.c_int32], None]:
     name = f'ctransform_{(8 if dtype == torch.int8 else 32)}_{orderA}_to_{orderOut}_{"t" if transpose else "n"}'
     if not hasattr(lib, name):
         print(name)
@@ -479,7 +493,14 @@ def get_transform_func(dtype, orderA, orderOut, transpose=False):
         return getattr(lib, name)
 
 
-def get_transform_buffer(shape, dtype, device, to_order, from_order="row", transpose=False):
+def get_transform_buffer(
+    shape: torch.Size,
+    dtype: torch.dtype,
+    device: Union[torch.device | str | int],
+    to_order: TransformOrder,
+    from_order: TransformOrder = "row",
+    transpose=False,
+):
     # init_func = torch.empty
     init_func = torch.zeros
     dims = len(shape)
@@ -519,12 +540,12 @@ def get_transform_buffer(shape, dtype, device, to_order, from_order="row", trans
 
 
 def nvidia_transform(
-    A,
-    to_order,
-    from_order="row",
-    out=None,
+    A: torch.Tensor,
+    to_order: TransformOrder,
+    from_order: TransformOrder = "row",
+    out: Optional[torch.Tensor] = None,
     transpose=False,
-    state=None,
+    state: Optional[Tuple[torch.Size, TransformOrder]] = None,
     ld=None,
 ):
     if state is None:
@@ -1017,7 +1038,14 @@ def dequantize_blockwise(
     return out
 
 
-def get_4bit_type(typename, device=None, blocksize=64):
+DataType4Bit = Literal["nf4", "fp4", "int4", "af4"]
+
+
+def get_4bit_type(
+    typename: DataType4Bit,
+    device: Optional[Union[int, str, torch.device]] = None,
+    blocksize=64,
+):
     if device is None:
         device = "cuda"
     data = None
@@ -1964,7 +1992,7 @@ def gemv_4bit(
     out: Optional[torch.Tensor] = None,
     transposed_A=False,
     transposed_B=False,
-    state=None,
+    state: Optional[QuantState] = None,
 ):
     prev_device = pre_call(A.device)
     # sout = check_matmul(A, B, out, transposed_A, transposed_B, expected_type=A.dtype)
@@ -2257,7 +2285,7 @@ def batched_igemm(
     return out
 
 
-def igemmlt(A, B, SA, SB, out=None, Sout=None, dtype=torch.int32):
+def igemmlt(A: torch.Tensor, B: torch.Tensor, SA, SB, out=None, Sout=None, dtype=torch.int32):
     shapeA = SA[0]
     shapeB = SB[0]
     dimsA = len(shapeA)
@@ -2345,7 +2373,16 @@ def igemmlt(A, B, SA, SB, out=None, Sout=None, dtype=torch.int32):
     return out, Sout
 
 
-def mm_dequant(A, quant_state, row_stats, col_stats, out=None, new_row_stats=None, new_col_stats=None, bias=None):
+def mm_dequant(
+    A: torch.Tensor,
+    quant_state,
+    row_stats: torch.Tensor,
+    col_stats: torch.Tensor,
+    out: Optional[torch.Tensor] = None,
+    new_row_stats: Optional[torch.Tensor] = None,
+    new_col_stats: Optional[torch.Tensor] = None,
+    bias: Optional[torch.Tensor] = None,
+):
     assert A.dtype == torch.int32
     if bias is not None:
         assert bias.dtype == torch.float16
@@ -2390,7 +2427,13 @@ def mm_dequant(A, quant_state, row_stats, col_stats, out=None, new_row_stats=Non
     return out
 
 
-def get_colrow_absmax(A, row_stats=None, col_stats=None, nnz_block_ptr=None, threshold=0.0):
+def get_colrow_absmax(
+    A: torch.Tensor,
+    row_stats: Optional[torch.Tensor] = None,
+    col_stats: Optional[torch.Tensor] = None,
+    nnz_block_ptr: Optional[torch.Tensor] = None,
+    threshold=0.0,
+):
     assert A.dtype == torch.float16
     device = A.device
 
@@ -2429,7 +2472,7 @@ def get_colrow_absmax(A, row_stats=None, col_stats=None, nnz_block_ptr=None, thr
 
 
 class COOSparseTensor:
-    def __init__(self, rows, cols, nnz, rowidx, colidx, values):
+    def __init__(self, rows, cols, nnz, rowidx: torch.Tensor, colidx: torch.Tensor, values: torch.Tensor):
         assert rowidx.dtype == torch.int32
         assert colidx.dtype == torch.int32
         assert values.dtype == torch.float16
@@ -2446,7 +2489,7 @@ class COOSparseTensor:
 
 
 class CSRSparseTensor:
-    def __init__(self, rows, cols, nnz, rowptr, colidx, values):
+    def __init__(self, rows, cols, nnz, rowptr: torch.Tensor, colidx: torch.Tensor, values: torch.Tensor):
         assert rowptr.dtype == torch.int32
         assert colidx.dtype == torch.int32
         assert values.dtype == torch.float16
@@ -2463,7 +2506,7 @@ class CSRSparseTensor:
 
 
 class CSCSparseTensor:
-    def __init__(self, rows, cols, nnz, colptr, rowidx, values):
+    def __init__(self, rows, cols, nnz, colptr: torch.Tensor, rowidx: torch.Tensor, values: torch.Tensor):
         assert colptr.dtype == torch.int32
         assert rowidx.dtype == torch.int32
         assert values.dtype == torch.float16
@@ -2479,7 +2522,7 @@ class CSCSparseTensor:
         self.values = values
 
 
-def coo2csr(cooA):
+def coo2csr(cooA: COOSparseTensor):
     values, counts = torch.unique(cooA.rowidx, return_counts=True)
     values.add_(1)
     rowptr = torch.zeros((cooA.rows + 1,), dtype=torch.int32, device=cooA.rowidx.device)
@@ -2488,7 +2531,7 @@ def coo2csr(cooA):
     return CSRSparseTensor(cooA.rows, cooA.cols, cooA.nnz, rowptr, cooA.colidx, cooA.values)
 
 
-def coo2csc(cooA):
+def coo2csc(cooA: COOSparseTensor):
     val, col2rowidx = torch.sort(cooA.colidx)
     rowidx = cooA.rowidx[col2rowidx]
     values = cooA.values[col2rowidx]
@@ -2500,14 +2543,21 @@ def coo2csc(cooA):
     return CSCSparseTensor(cooA.rows, cooA.cols, cooA.nnz, colptr, rowidx, values)
 
 
-def coo_zeros(rows, cols, nnz, device, dtype=torch.half):
+def coo_zeros(rows, cols, nnz, device: Union[int, str, torch.device], dtype=torch.half):
     rowidx = torch.zeros((nnz,), dtype=torch.int32, device=device)
     colidx = torch.zeros((nnz,), dtype=torch.int32, device=device)
     values = torch.zeros((nnz,), dtype=dtype, device=device)
     return COOSparseTensor(rows, cols, nnz, rowidx, colidx, values)
 
 
-def double_quant(A, col_stats=None, row_stats=None, out_col=None, out_row=None, threshold=0.0):
+def double_quant(
+    A: torch.Tensor,
+    col_stats: Optional[torch.Tensor] = None,
+    row_stats: Optional[torch.Tensor] = None,
+    out_col: Optional[torch.Tensor] = None,
+    out_row: Optional[torch.Tensor] = None,
+    threshold=0.0,
+):
     device = A.device
     assert A.dtype == torch.half
     assert device.type == "cuda"
@@ -2597,7 +2647,15 @@ def double_quant(A, col_stats=None, row_stats=None, out_col=None, out_row=None, 
     return out_row, out_col, row_stats, col_stats, coo_tensor
 
 
-def transform(A, to_order, from_order="row", out=None, transpose=False, state=None, ld=None):
+def transform(
+    A: torch.Tensor,
+    to_order: TransformOrder,
+    from_order: TransformOrder = "row",
+    out: Optional[torch.Tensor] = None,
+    transpose=False,
+    state: Optional[Tuple[torch.Size, TransformOrder]] = None,
+    ld=None,
+):
     prev_device = pre_call(A.device)
     if state is None:
         state = (A.shape, from_order)
@@ -2645,7 +2703,7 @@ def transform(A, to_order, from_order="row", out=None, transpose=False, state=No
     return out, new_state
 
 
-def spmm_coo(cooA, B, out=None):
+def spmm_coo(cooA: COOSparseTensor, B: torch.Tensor, out: Optional[torch.Tensor] = None):
     if out is None:
         out = torch.empty((cooA.rows, B.shape[1]), device=B.device, dtype=B.dtype)
     nnz = cooA.nnz
@@ -2693,7 +2751,12 @@ def spmm_coo(cooA, B, out=None):
     return out
 
 
-def spmm_coo_very_sparse(cooA, B, dequant_stats=None, out=None):
+def spmm_coo_very_sparse(
+    cooA: COOSparseTensor,
+    B: torch.Tensor,
+    dequant_stats: Optional[torch.Tensor] = None,
+    out: Optional[torch.Tensor] = None,
+):
     if out is None:
         out = torch.zeros((cooA.rows, B.shape[1]), device=B.device, dtype=cooA.values.dtype)
     nnz = cooA.nnz
@@ -2777,8 +2840,20 @@ def spmm_coo_very_sparse(cooA, B, dequant_stats=None, out=None):
 
 C = 127.0
 
+VectorwiseQuantType = Literal[
+    "linear",
+    "vector",
+    "row",
+    "zeropoint",
+    "vector-zeropoint",
+    "row-zeropoint",
+    "truncated-vector",
+]
 
-def vectorwise_quant(x, dim=1, quant_type="vector"):
+
+def vectorwise_quant(
+    x: torch.Tensor, dim=1, quant_type: VectorwiseQuantType = "vector"
+) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
     if quant_type == "linear":
         max1 = torch.abs(x).max().float()
         xq = torch.round(x / max1 * 127).to(torch.int8)
@@ -2822,7 +2897,11 @@ def vectorwise_quant(x, dim=1, quant_type="vector"):
         return None
 
 
-def vectorwise_dequant(xq, max1, quant_type="vector"):
+def vectorwise_dequant(
+    xq: torch.Tensor,
+    max1,
+    quant_type: VectorwiseQuantType = "vector",
+) -> Optional[Tensor]:
     if quant_type == "vector":
         x = (xq / C * max1).to(torch.float32)
         return x
@@ -2830,7 +2909,13 @@ def vectorwise_dequant(xq, max1, quant_type="vector"):
         return None
 
 
-def vectorwise_mm_dequant(xq, S1, S2, dtype=torch.half, quant_type="vector"):
+def vectorwise_mm_dequant(
+    xq: torch.Tensor,
+    S1: torch.Tensor,
+    S2: torch.Tensor,
+    dtype=torch.half,
+    quant_type: VectorwiseQuantType = "vector",
+):
     if quant_type == "linear":
         norm = S1 * S2 / (C * C)
         # double cast needed to prevent overflows
@@ -2889,7 +2974,14 @@ def vectorwise_mm_dequant(xq, S1, S2, dtype=torch.half, quant_type="vector"):
         return None
 
 
-def dequant_min_max(xq, A, B, SA, SB, dtype=torch.half):
+def dequant_min_max(
+    xq: torch.Tensor,
+    A: torch.Tensor,
+    B: torch.Tensor,
+    SA: torch.Tensor,
+    SB: torch.Tensor,
+    dtype=torch.half,
+):
     offset = B.float().t().sum(0) * (SA[0] + SA[1])
     x = xq.float()
     if len(xq.shape) == 2 and len(SB.shape) == 3:
@@ -2903,7 +2995,7 @@ def dequant_min_max(xq, A, B, SA, SB, dtype=torch.half):
     return x.to(dtype)
 
 
-def extract_outliers(A, SA, idx):
+def extract_outliers(A: torch.Tensor, SA: Tuple[torch.Size, Literal["col_turing", "col_ampere"]], idx: torch.Tensor):
     shapeA = SA[0]
     formatA = SA[1]
     assert formatA in ["col_turing", "col_ampere"]
@@ -2928,7 +3020,7 @@ def extract_outliers(A, SA, idx):
     return out
 
 
-def pipeline_test(A, batch_size):
+def pipeline_test(A: torch.Tensor, batch_size: int):
     out = torch.zeros_like(A)
     lib.cpipeline_test(get_ptr(A), get_ptr(out), ct.c_size_t(A.numel()), ct.c_size_t(batch_size))
     return out
