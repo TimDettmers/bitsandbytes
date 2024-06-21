@@ -103,6 +103,28 @@ jobs:
           name: shared_library_cuda_${{ matrix.os }}_${{ matrix.arch }}_${{ matrix.cuda_version }}
           path: output/*
           retention-days: 7
+  build-shared-libs-rocm:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        arch: [x86_64]
+    runs-on: ${{ matrix.os }} # One day, we could run them on native agents. Azure supports this now but it's planned only for Q3 2023 for hosted agents
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker multiarch
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: docker/setup-qemu-action@v2
+      - name: Clean up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Build C++
+        run: bash .github/scripts/build-rocm.sh
+        env:
+          build_os: ${{ matrix.os }}
+          build_arch: ${{ matrix.arch }}
   build-wheels:
     needs:
       - build-shared-libs
