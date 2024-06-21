@@ -437,7 +437,7 @@ class Optimizer2State(Optimizer8bit):
         state = self.state[p]
         state["step"] = 0
 
-        if dtype == torch.float32 or (dtype == torch.uint8 and p.numel() < 4096):
+        if dtype == torch.float32:
             state["state1"] = self.get_state_buffer(p, dtype=torch.float32)
             state["state2"] = self.get_state_buffer(p, dtype=torch.float32)
         elif dtype == torch.uint8:
