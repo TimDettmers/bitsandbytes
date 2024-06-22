@@ -1,21 +1,3 @@
-"""
-extract factors the build is dependent on:
-[X] compute capability
-    [ ] TODO: Q - What if we have multiple GPUs of different makes?
-- CUDA version
-- Software:
-    - CPU-only: only CPU quantization functions (no optimizer, no matrix multiple)
-    - CuBLAS-LT: full-build 8-bit optimizer
-    - no CuBLAS-LT: no 8-bit matrix multiplication (`nomatmul`)
-
-evaluation:
-    - if paths faulty, return meaningful error
-    - else:
-        - determine CUDA version
-        - determine capabilities
-        - based on that set the default path
-"""
-
 import ctypes as ct
 import logging
 import os
