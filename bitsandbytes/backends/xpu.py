@@ -5,6 +5,28 @@ import torch
 from bitsandbytes.utils import QuantState
 
 from .base import Backend
+from .cpu_xpu_common import (
+    dequantize_4bit_impl,
+    double_quant_impl,
+    gemm_4bit_impl,
+    igemmlt_impl,
+    mm_dequant_impl,
+    quantize_4bit_impl,
+)
+
+Tensor = torch.Tensor
+def assert_on_xpu(tensors):
+    on_xpu = True
+    for t in tensors:
+        if t is None:
+            continue  # NULL pointers are fine
+        on_xpu &= t.device.type == "xpu"
+    if not on_xpu:
+        raise TypeError(
+            "All input tensors need to be on CPU, but found some tensors to not be on XPU:\n"
+            f" {[(t.shape, t.device) if isinstance(t, Tensor) else None for t in tensors]}"
+        )
+    return on_xpu
 
 
 class XPUBackend(Backend):
@@ -17,7 +39,8 @@ class XPUBackend(Backend):
         out_row: Optional[torch.Tensor] = None,
         threshold=0.0,
     ):
-        raise NotImplementedError
+        assert_on_xpu([A, col_stats, row_stats, out_col, out_row])
+        return double_quant_impl(A, col_stats, row_stats, out_col, out_row, threshold)
 
     def transform(
         self,
@@ -29,7 +52,23 @@ class XPUBackend(Backend):
         state: Optional[Tuple[torch.Size, str]] = None,
         ld=None,
     ):
-        raise NotImplementedError
+        """
+        Transform tensor A to to_order. It is originally designed for CUDA.
+        For CPU, it returns the original tensor if transpose=False.
+        Otherwise, it returns the transpose of A
+        """
+        assert_on_xpu([A, out])
+        if transpose:
+            if out is not None:
+                out.copy_(A.T)
+            else:
+                out = A.T
+        else:
+            if out is not None:
+                out.copy_(A)
+            else:
+                out = A
+        return out, state
 
     def igemmlt(
         self,
@@ -41,7 +80,8 @@ class XPUBackend(Backend):
         Sout: Optional[Tuple[torch.Size, str]] = None,
         dtype=torch.int32,
     ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size, str]]]]]:
-        raise NotImplementedError
+        assert_on_xpu([A, B])
+        return igemmlt_impl(A, B, SA, SB, out, Sout, dtype)
 
     def mm_dequant(
         self,
@@ -54,7 +94,19 @@ class XPUBackend(Backend):
         new_col_stats: Optional[torch.Tensor] = None,
         bias: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        assert_on_xpu([A, row_stats, col_stats, out, bias])
+        return mm_dequant_impl(
+            A,
+            quant_state,
+            row_stats,
+            col_stats,
+            out,
+            new_row_stats,
+            new_col_stats,
+            bias,
+            self.mm_dequant_compute_dtype,
+            self.mm_dequant_output_dtype,
+        )
 
     def extract_outliers(
         self,
@@ -62,7 +114,9 @@ class XPUBackend(Backend):
         SA: Tuple[torch.Size, str],
         idx: torch.Tensor,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        assert_on_xpu([A])
+        return A[:, idx].contiguous()
+
 
     def quantize_4bit(
         self,
@@ -74,7 +128,11 @@ class XPUBackend(Backend):
         quant_type: Literal["fp4", "nf4"] = "fp4",
         quant_storage=torch.uint8,
     ) -> Tuple[torch.Tensor, QuantState]:
-        raise NotImplementedError
+        if blocksize is None:
+            blocksize = 64
+        assert_on_xpu([A, absmax, out])
+        assert quant_storage == torch.uint8, "CPU backend only supports uint8 quant_storage"
+        return quantize_4bit_impl(A, absmax, out, blocksize, compress_statistics, quant_type)
 
     def dequantize_4bit(
         self,
@@ -85,7 +143,10 @@ class XPUBackend(Backend):
         blocksize: int = 64,
         quant_type: Literal["fp4", "nf4"] = "fp4",
     ) -> torch.Tensor:
-        raise NotImplementedError
+        if blocksize is None:
+            blocksize = 64
+        assert_on_xpu([A, absmax, out])
+        return dequantize_4bit_impl(A, quant_state, absmax, out, blocksize, quant_type)
 
     def gemv_4bit(
         self,
@@ -96,7 +157,10 @@ class XPUBackend(Backend):
         transposed_B=False,
         state: QuantState = None,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        assert_on_xpu([A, B, out])
+        if state is None:
+            raise ValueError("state cannot be None. gemv_4bit() requires the state from quantize_4bit()")
+        return gemm_4bit_impl(A, B, out, transposed_A, transposed_B, state)
 
     def dequantize_blockwise(
         self,

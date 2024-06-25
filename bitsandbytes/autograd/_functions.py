@@ -575,7 +575,7 @@ def matmul_4bit(
     bias=None,
 ):
     assert quant_state is not None
-    if (A.numel() == A.shape[-1] or A.device.type == "cpu") and A.requires_grad == False:
+    if (A.numel() == A.shape[-1] or A.device.type == "cpu" or A.device.type == "xpu") and A.requires_grad == False:
         # CPU backend does not require A to be a vector
         if A.shape[-1] % quant_state.blocksize != 0:
             warn(
