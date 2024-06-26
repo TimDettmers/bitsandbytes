@@ -182,7 +182,7 @@ def test_linear_serialization(
 
 
 @pytest.fixture
-def linear8bit():
+def linear8bit(requires_cuda):
     linear = torch.nn.Linear(32, 96)
     linear_custom = Linear8bitLt(
         linear.in_features,

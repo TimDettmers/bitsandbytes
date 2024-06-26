@@ -616,7 +616,7 @@ def test_fp8linear():
     assert bgraderr < 0.00002
 
 
-def test_4bit_warnings():
+def test_4bit_warnings(requires_cuda):
     dim1 = 64
 
     with pytest.warns(UserWarning, match=r"inference or training"):
