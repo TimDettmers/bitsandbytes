@@ -5,6 +5,7 @@
 from collections import abc as container_abcs, defaultdict
 from copy import deepcopy
 from itertools import chain
+from typing import Any, Dict, Optional
 
 import torch
 
@@ -313,7 +314,7 @@ class Optimizer8bit(torch.optim.Optimizer):
     def init_state(self, group, p, gindex, pindex):
         raise NotImplementedError("init_state method needs to be overridden")
 
-    def update_step(self, group, p, gindex, pindex):
+    def update_step(self, group, p, gindex, pindex, return_updates):
         raise NotImplementedError("The update_step method needs to be overridden")
 
     def get_state_buffer(self, p, dtype=torch.float32):
@@ -473,7 +474,14 @@ class Optimizer2State(Optimizer8bit):
             state["unorm_vec"] = torch.zeros((1,), device=p.device)
 
     @torch.no_grad()
-    def update_step(self, group, p, gindex, pindex):
+    def update_step(
+        self,
+        group: Dict[str, Any],
+        p: torch.Tensor,
+        gindex: int,
+        pindex: int,
+        return_updates: Optional[torch.Tensor] = None,
+    ):
         state = self.state[p]
         grad = p.grad
 
@@ -509,6 +517,7 @@ class Optimizer2State(Optimizer8bit):
                 state["unorm_vec"] if config["max_unorm"] > 0.0 else None,
                 max_unorm=config["max_unorm"],
                 skip_zeros=config["skip_zeros"],
+                return_updates=return_updates,
             )
 
         elif state["state1"].dtype == torch.uint8 and not config["block_wise"]:
@@ -533,6 +542,7 @@ class Optimizer2State(Optimizer8bit):
                 gnorm_scale=gnorm_scale,
                 unorm_vec=state["unorm_vec"] if config["max_unorm"] > 0.0 else None,
                 max_unorm=config["max_unorm"],
+                return_updates=return_updates,
             )
 
             # swap maxes
@@ -557,6 +567,7 @@ class Optimizer2State(Optimizer8bit):
                 config["weight_decay"],
                 gnorm_scale=gnorm_scale,
                 skip_zeros=config["skip_zeros"],
+                return_updates=return_updates,
             )
 
 
