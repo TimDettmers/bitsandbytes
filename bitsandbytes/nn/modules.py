@@ -310,6 +310,9 @@ class Params4bit(torch.nn.Parameter):
     def cpu(self, non_blocking: bool = False):
         return self.to(device="cpu", non_blocking=non_blocking)
 
+    def xpu(self, non_blocking: bool = False):
+        return self.to(device="xpu", non_blocking=non_blocking)
+
     @overload
     def to(
         self: T,
@@ -327,7 +330,7 @@ class Params4bit(torch.nn.Parameter):
     def to(self, *args, **kwargs):
         device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
 
-        if device is not None and device.type in ["cuda", "cpu"] and not self.bnb_quantized:
+        if device is not None and device.type in ["cuda", "cpu", "xpu"] and not self.bnb_quantized:
             return self._quantize(device)
         else:
             if self.quant_state is not None:
@@ -605,6 +608,19 @@ class Int8Params(torch.nn.Parameter):
         self.SCB = SCB
         return self
 
+    def xpu(self):
+        # we store the 8-bit rows-major weight
+        B = self.data.contiguous().bfloat16().xpu()
+        CB, CBt, SCB, SCBt, coo_tensorB = bnb.functional.double_quant(B)
+        if CBt is not None:
+            del CBt
+        if SCBt is not None:
+            del SCBt
+        self.data = CB
+        self.CB = CB
+        self.SCB = SCB
+        return self
+
     @overload
     def to(
         self: T,
@@ -626,6 +642,8 @@ class Int8Params(torch.nn.Parameter):
             return self.cuda(device)
         elif device.type == "cpu" and self.data.dtype != torch.int8:
             return self.cpu()
+        elif device.type == "xpu" and self.data.dtype != torch.int8:
+            return self.xpu()
         else:
             new_param = Int8Params(
                 super().to(device=device, dtype=dtype, non_blocking=non_blocking),

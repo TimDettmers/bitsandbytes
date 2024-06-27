@@ -1771,7 +1771,7 @@ class COOSparseTensor:
     def __init__(self, rows, cols, nnz, rowidx, colidx, values):
         assert rowidx.dtype == torch.int32
         assert colidx.dtype == torch.int32
-        if values.device == torch.device("cpu"):
+        if values.device == torch.device("cpu") or torch.device("xpu"):
             assert values.dtype in [torch.bfloat16, torch.half, torch.float]
         else:
             assert values.dtype == torch.float16
