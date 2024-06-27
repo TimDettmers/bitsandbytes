@@ -30,6 +30,9 @@ def assert_on_xpu(tensors):
 
 
 class XPUBackend(Backend):
+    mm_dequant_compute_dtype = torch.bfloat16
+    mm_dequant_output_dtype = torch.bfloat16
+
     def double_quant(
         self,
         A: torch.Tensor,

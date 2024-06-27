@@ -516,6 +516,7 @@ def gemm_4bit_impl(
     if ipex_cpu and _ipex_cpu_version_prereq(2, 3) and hasattr(state, "op_context"):
         assert state.op_context is not None
         output = torch.ops.torch_ipex.ipex_woq_linear(A, state.op_context.get_data_handle())
+    # TODO: Support XPU optimization path
     else:
         dqB = dequantize_4bit_impl(B, state, blocksize=state.blocksize)
         output = torch.matmul(A, dqB)

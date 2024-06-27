@@ -221,7 +221,7 @@ matmul_cublas = MatMul8bit.apply
 
 def supports_igemmlt(device: torch.device) -> bool:
     """check if this device supports the optimized int8 kernel"""
-    if device == torch.device("cpu"):
+    if device == torch.device("cpu") or torch.device("xpu"):
         return True
     if torch.version.hip:
         return False if BNB_HIP_VERSION < 601 else True
@@ -321,7 +321,7 @@ class MatMul8bitLt(torch.autograd.Function):
 
         # Cast A to fp16
         A_dtype = torch.float16
-        if A.device == torch.device("cpu"):
+        if A.device == torch.device("cpu") or torch.device("xpu"):
             A_dtype = torch.bfloat16
         if A.dtype != A_dtype:
             warnings.warn(f"MatMul8bitLt: inputs will be cast from {A.dtype} to {A_dtype} during quantization")
