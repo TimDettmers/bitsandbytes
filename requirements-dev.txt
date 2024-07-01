@@ -4,6 +4,6 @@ pytest~=8.2.2
 einops~=0.8.0
 wheel~=0.43.0
 lion-pytorch~=0.2.2
-scipy~=1.13.1
+scipy~=1.14.0
 pandas~=2.2.2
 matplotlib~=3.9.0
