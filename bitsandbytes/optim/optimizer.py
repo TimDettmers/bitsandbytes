@@ -474,9 +474,13 @@ class Optimizer2State(Optimizer8bit):
 
     @torch.no_grad()
     def update_step(self, group, p, gindex, pindex):
+        # avoid update error from non-contiguous memory layout
+        p.data = p.data.contiguous()
+        p.grad = p.grad.contiguous()
+        
         state = self.state[p]
         grad = p.grad
-
+        
         config = self.get_config(gindex, pindex, group)
 
         state["step"] += 1
@@ -685,6 +689,10 @@ class Optimizer1State(Optimizer8bit):
 
     @torch.no_grad()
     def update_step(self, group, p, gindex, pindex):
+        # avoid update error from non-contiguous memory layout
+        p.data = p.data.contiguous()
+        p.grad = p.grad.contiguous()
+        
         state = self.state[p]
         grad = p.grad
 
